@@ -1,0 +1,28 @@
+name: faro
+version: 0.1.0
+
+authors:
+  - Anykeyh <anykeyh@example.com>
+
+description: |
+  Server resource monitoring daemon with HTTP API and embedded storage.
+
+dependencies:
+  kemal:
+    github: kemalcr/kemal
+    version: ~> 1.6
+
+  duckdb:
+    github: anykeyh/crystal-duckdb
+
+  anyolite:
+    github: Anyolite/anyolite
+
+  yaml:
+    github: crystal-lang/crystal
+
+development_dependencies:
+  ameba:
+    github: crystal-ameba/ameba
+
+license: MIT

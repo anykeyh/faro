@@ -1,0 +1,6 @@
+/lib/
+*.dwarf
+*.db
+*.wal
+/bin/
+main
