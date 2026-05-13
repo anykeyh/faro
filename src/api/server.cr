@@ -31,6 +31,34 @@ module Faro::API
         send_file env, File.join(@frontend_path, "mithril.js")
       end
 
+      get "/api.js" do |env|
+        send_file env, File.join(@frontend_path, "api.js")
+      end
+
+      get "/store.js" do |env|
+        send_file env, File.join(@frontend_path, "store.js")
+      end
+
+      get "/components/header.js" do |env|
+        send_file env, File.join(@frontend_path, "components", "header.js")
+      end
+
+      get "/components/indicator_card.js" do |env|
+        send_file env, File.join(@frontend_path, "components", "indicator_card.js")
+      end
+
+      get "/components/graph_card.js" do |env|
+        send_file env, File.join(@frontend_path, "components", "graph_card.js")
+      end
+
+      get "/components/add_card.js" do |env|
+        send_file env, File.join(@frontend_path, "components", "add_card.js")
+      end
+
+      get "/components/dashboard.js" do |env|
+        send_file env, File.join(@frontend_path, "components", "dashboard.js")
+      end
+
       get "/health" do |env|
         env.response.content_type = "application/json"
         {"status" => "ok", "timestamp" => Time.utc.to_rfc3339}.to_json
