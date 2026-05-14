@@ -74,6 +74,21 @@ Storage backend. Use `":memory:"` for ephemeral data, or a file path for persist
 db: "./data/faro.db"
 ```
 
+#### `log_level`
+
+Controls the verbosity of log output. Default: `warn`.
+
+| Level   | Description |
+|---------|-------------|
+| `trace` | Full debug trace — each probe run, each metric written |
+| `debug` | Detailed information (e.g. adapter health changes) |
+| `info`  | Startup info — adapters, thresholds, latches loaded |
+| `warn`  | Only warnings and errors (default) |
+| `error` | Only errors |
+| `fatal` | Only fatal errors |
+
+Can also be set via CLI flag `--verbose` / `-v`, which overrides the config value to `debug`.
+
 #### `server`
 
 HTTP API bind address and port:
@@ -83,6 +98,19 @@ server:
   host: "0.0.0.0"
   port: 3000
 ```
+
+**Optional HTTP Basic Auth**:
+
+```yaml
+server:
+  host: "0.0.0.0"
+  port: 3000
+  basic_auth:
+    username: admin
+    password: changeme
+```
+
+When enabled, all HTTP endpoints (dashboard, API, Prometheus) require authentication via the `Authorization: Basic ...` header.
 
 #### `probes`
 

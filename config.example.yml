@@ -4,9 +4,16 @@
 
 db: "sqlite3://:memory:"
 
+# Log level: trace, debug, info, warn, error, fatal
+log_level: trace
+
 server:
   host: "0.0.0.0"
   port: 3000
+  # Optional HTTP Basic Auth — uncomment to enable
+  # basic_auth:
+  #   username: admin
+  #   password: admin
 
 # System probes to auto-start at 5s interval.
 # Comment out or set to [] to disable all.

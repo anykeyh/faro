@@ -2,6 +2,8 @@ require "kemal"
 require "json"
 require "../store/bucketing"
 require "./embedded_frontend"
+require "./basic_auth_handler"
+require "../config"
 
 module Faro::API
   class Server
@@ -9,11 +11,18 @@ module Faro::API
     @thresholds : Array(Faro::Config::ThresholdConfig)
     @frontend_path : String
 
-    def initialize(@store : Faro::Store::Bucketing, @thresholds : Array(Faro::Config::ThresholdConfig), host : String = "0.0.0.0", port : Int32 = 3000)
+    def initialize(@store : Faro::Store::Bucketing, @thresholds : Array(Faro::Config::ThresholdConfig), server_config : Faro::Config::ServerConfig)
       @frontend_path = File.join(__DIR__, "../../frontend")
-      Kemal.config.port = port
-      Kemal.config.host_binding = host
+      Kemal.config.port = server_config.port
+      Kemal.config.host_binding = server_config.host
       Kemal.config.env = "production"
+
+      # Optional HTTP Basic Auth
+      if (auth = server_config.basic_auth)
+        Kemal.config.add_handler(
+          Faro::API::BasicAuthHandler.new(auth.username, auth.password)
+        )
+      end
     end
 
     def start

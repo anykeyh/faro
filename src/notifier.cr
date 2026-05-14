@@ -1,3 +1,5 @@
+require "./log"
+
 # Runs notification scripts when latches open or close.
 # The script receives latch details as environment variables:
 #   FARO_EVENT        = "open" | "close"
@@ -43,7 +45,7 @@ module Faro
               output: Process::Redirect::Close,
               error: Process::Redirect::Close)
           rescue ex
-            STDERR.puts "NOTIFY ERROR: #{ex.message}"
+            Faro::Log.error "Notification script '#{s[:script]}' failed: #{ex.message}"
           end
         end
       end

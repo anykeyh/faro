@@ -1,9 +1,12 @@
 require "sqlite3"
 require "duckdb"
+require "option_parser"
 
 require "./config"
+require "./log"
 require "./faro"
 
+log_level = "warn"
 
 config = begin
   path = "./config.yml"
@@ -20,6 +23,10 @@ config = begin
       from_stdin = true
     end
 
+    opts.on("-v", "--verbose", "Enable debug logging") do
+      log_level = "debug"
+    end
+
     opts.on("-h", "--help", "Show help") do
       puts opts
       exit 0
@@ -32,5 +39,8 @@ config = begin
     Faro::Config.load(path)
   end
 end
+
+# CLI verbose flag overrides config log_level
+config.log_level = log_level if log_level == "debug"
 
 Faro.run(config)

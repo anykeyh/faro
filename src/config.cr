@@ -10,6 +10,7 @@ struct Faro::Config
   property thresholds : Array(ThresholdConfig) = [] of ThresholdConfig
   property notifications : Array(NotificationConfig) = [] of NotificationConfig
   property server : ServerConfig = ServerConfig.from_yaml("host: 0.0.0.0\nport: 3000\n")
+  property log_level : String = "warn"
 
   struct AdapterConfig
     include YAML::Serializable
@@ -41,6 +42,14 @@ struct Faro::Config
 
     property host : String = "0.0.0.0"
     property port : Int32 = 3000
+    property basic_auth : BasicAuthConfig?  # nil = no auth
+
+    struct BasicAuthConfig
+      include YAML::Serializable
+
+      property username : String
+      property password : String
+    end
   end
 
   struct ViaConfig

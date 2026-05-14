@@ -4,11 +4,15 @@ require "./runners/container"
 require "./store/db"
 require "./store/bucketing"
 require "./api/server"
+require "./log"
 
 module Faro
   DEFAULT_INTERVAL = 10.0
 
   def self.run(config : Config)
+    # Setup logging
+    Faro::Log.setup(config.log_level)
+
     db = Store::Db.new(config.db)
     db.setup_schema
     store = Store::Bucketing.new(db)
@@ -18,12 +22,20 @@ module Faro
     # Temp files for embedded probes — cleaned up on exit.
     temp_files = [] of String
 
+    # ── Log startup info ────────────────────────────────────────────
+
+    Faro::Log.info "Faro v#{version} starting"
+    Faro::Log.info "Database: #{config.db}"
+    Faro::Log.info "Log level: #{config.log_level}"
+
     config.effective_adapters.each do |adapter|
+      Faro::Log.info "Adapter: #{adapter.name} (run: #{adapter.run}, interval: #{adapter.effective_interval}s)"
+
       sleep_span = adapter.effective_interval.seconds
 
       raw_run = adapter.run
       if raw_run.nil?
-        STDERR.puts "Adapter '#{adapter.name}' has no 'run' directive"
+        Faro::Log.warn "Adapter '#{adapter.name}' has no 'run' directive, skipping"
         next
       end
 
@@ -32,7 +44,7 @@ module Faro
                       name = raw_run.lchop('$')
                       content = EmbeddedProbes.resolve(raw_run)
                       if content.nil?
-                        STDERR.puts "Unknown probe '#{name}' for adapter '#{adapter.name}'"
+                        Faro::Log.warn "Unknown probe '#{name}' for adapter '#{adapter.name}', skipping"
                         next
                       end
                       tmp = File.tempfile("faro_#{name}", ".sh") do |f|
@@ -53,12 +65,13 @@ module Faro
               data = Hash(String, Float64).from_json(result.stdout)
               data["_alive"] = 1.0
               store.write(adapter.name, data, Time.utc)
+              Faro::Log.trace "[#{adapter.name}] ok (#{data.size} metrics)"
             else
-              STDERR.puts "[#{adapter.name}] exit #{result.exit_code}: #{result.stderr}"
+              Faro::Log.warn "[#{adapter.name}] exit #{result.exit_code}: #{result.stderr.strip}"
               store.write(adapter.name, {"_alive" => 0.0}, Time.utc)
             end
           rescue ex
-            STDERR.puts "ERROR in adapter '#{adapter.name}': #{ex.message}"
+            Faro::Log.warn "ERROR in adapter '#{adapter.name}': #{ex.message}"
             store.write(adapter.name, {"_alive" => 0.0}, Time.utc)
           end
           sleep sleep_span
@@ -76,9 +89,21 @@ module Faro
             v && v > 0.5
           end
           store.write("meta", {"healthy" => all_alive ? 1.0 : 0.0}, Time.utc)
+          if !all_alive
+            Faro::Log.debug "meta: one or more adapters are down"
+          end
         rescue ex
-          STDERR.puts "ERROR in meta healthy probe: #{ex.message}"
+          Faro::Log.error "meta healthy probe: #{ex.message}"
         end
+      end
+    end
+
+    # ── Log thresholds info ─────────────────────────────────────────
+
+    config.thresholds.each do |t|
+      t.latches.each do |l|
+        dir = l.set > l.release ? "above" : "below"
+        Faro::Log.info "Threshold: #{t.name}.#{l.name} (#{dir}, set=#{l.set}, release=#{l.release}#{l.sustain ? ", sustain=#{l.sustain}s" : ""})"
       end
     end
 
@@ -88,6 +113,10 @@ module Faro
     end
 
     server_config = config.server
-    API::Server.new(store, config.thresholds, host: server_config.host, port: server_config.port).start
+    API::Server.new(store, config.thresholds, server_config).start
+  end
+
+  def self.version : String
+    {{ read_file("shard.yml").split("\n").find(&.starts_with?("version:")).split(": ")[1].strip || "unknown" }}
   end
 end
