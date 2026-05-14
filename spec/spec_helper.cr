@@ -9,11 +9,9 @@ require "../src/store/db"
 def fresh_store(backend : Symbol = :sqlite) : Faro::Store::AbstractBackend
   uri = case backend
         when :sqlite
-          # Use a unique URI per call so Crystal's connection pool doesn't reuse
-          # the same in-memory database across tests.
-          "sqlite3://%3Amemory%3A?max_pool_size=1"
+          "sqlite3://:memory:?max_pool_size=1"
         when :duckdb
-          "duckdb://[:memory:]?max_pool_size=1"
+          "duckdb://:memory:?max_pool_size=1"
         else
           raise "Unknown backend: #{backend}"
         end

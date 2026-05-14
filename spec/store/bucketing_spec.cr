@@ -4,9 +4,9 @@ require "../../src/store/bucketing"
 def fresh_bucketing(backend : Symbol = :sqlite) : Faro::Store::Bucketing
   uri = case backend
         when :sqlite
-          "sqlite3://%3Amemory%3A?max_pool_size=1"
+          "sqlite3://:memory:?max_pool_size=1"
         when :duckdb
-          "duckdb://[:memory:]?max_pool_size=1"
+          "duckdb://:memory:?max_pool_size=1"
         else
           raise "Unknown backend: #{backend}"
         end

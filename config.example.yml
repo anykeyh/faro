@@ -2,7 +2,7 @@
 # Run: crystal run src/main.cr -- -c config.example.yml
 # Then open http://localhost:3000
 
-db: "duckdb://[:memory:]"
+db: "sqlite3://:memory:"
 
 server:
   host: "0.0.0.0"
