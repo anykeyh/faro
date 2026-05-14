@@ -41,11 +41,12 @@ jobs:
           curl -fsSL \
             "https://github.com/duckdb/duckdb/releases/download/${{ env.DUCKDB_VERSION }}/${{ matrix.duckdb_file }}" \
             -o /tmp/libduckdb.zip
-          sudo unzip -o /tmp/libduckdb.zip -d /usr/local/
+          sudo unzip -o /tmp/libduckdb.zip -d /tmp/libduckdb
+          sudo cp /tmp/libduckdb/libduckdb.so /usr/local/lib/
           sudo ldconfig
 
       - name: Install dependencies
-        run: shards install
+        run: shards install --production
 
       - name: Run tests
         run: crystal spec
@@ -84,11 +85,12 @@ jobs:
           curl -fsSL \
             "https://github.com/duckdb/duckdb/releases/download/${{ env.DUCKDB_VERSION }}/${{ matrix.duckdb_file }}" \
             -o /tmp/libduckdb.zip
-          sudo unzip -o /tmp/libduckdb.zip -d /usr/local/
+          sudo unzip -o /tmp/libduckdb.zip -d /tmp/libduckdb
+          sudo cp /tmp/libduckdb/libduckdb.so /usr/local/lib/
           sudo ldconfig
 
       - name: Install dependencies
-        run: shards install
+        run: shards install --production
 
       - name: Build release binary
         run: crystal build src/main.cr --release -o ${{ matrix.binary_name }}

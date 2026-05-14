@@ -23,9 +23,6 @@ dependencies:
     github: crystal-lang/crystal-sqlite3
     version: 0.23.0
 
-  anyolite:
-    github: Anyolite/anyolite
-
   yaml:
     github: crystal-lang/crystal
 
