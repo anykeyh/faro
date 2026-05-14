@@ -54,4 +54,4 @@ tag:
 	git push origin master "v$$version" latest --force; \
 	echo "Released v$$version"
 
-release: build tag
+release: tag
