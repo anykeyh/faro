@@ -104,3 +104,12 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -f latest
           git push origin latest --force
+
+      - name: Upload to latest release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: latest
+          files: |
+            faro-linux-amd64/faro-linux-amd64
+            faro-linux-arm64/faro-linux-arm64
+          make_latest: false
