@@ -1,13 +1,13 @@
 require "kemal"
 require "json"
-require "../store/duckdb"
+require "../store/bucketing"
 
 module Faro::API
   class Server
-    @store : Faro::Store::DuckDB
+    @store : Faro::Store::Bucketing
     @frontend_path : String
 
-    def initialize(@store : Faro::Store::DuckDB, host : String = "0.0.0.0", port : Int32 = 3000)
+    def initialize(@store : Faro::Store::Bucketing, host : String = "0.0.0.0", port : Int32 = 3000)
       @frontend_path = File.join(__DIR__, "../../frontend")
       Kemal.config.port = port
       Kemal.config.host_binding = host
@@ -102,6 +102,41 @@ module Faro::API
         end
 
         {"name" => name, "since" => since.to_rfc3339, "until" => finish.to_rfc3339, "series" => grouped}.to_json
+      end
+
+      # Prometheus /metrics endpoint — exposes all latest values with labels.
+      get "/metrics" do |env|
+        env.response.content_type = "text/plain; version=0.0.4"
+
+        # Build a set of (name, metric) → latest value
+        metrics = {} of String => Array(NamedTuple(metric: String, value: Float64))
+
+        @store.list_names.each do |entry|
+          name = entry[:name]
+          metric = entry[:metric]
+          value = @store.latest_value(name, metric)
+          next if value.nil?
+
+          metrics[name] ||= [] of NamedTuple(metric: String, value: Float64)
+          metrics[name] << {metric: metric, value: value.not_nil!}
+        end
+
+        String.build do |io|
+          io << "# HELP faro_adapter_metric Latest sensor reading.\n"
+          io << "# TYPE faro_adapter_metric gauge\n"
+
+          metrics.each do |adapter, points|
+            points.each do |p|
+              io << "faro_adapter_metric{adapter=\""
+              io << adapter
+              io << "\",metric=\""
+              io << p[:metric]
+              io << "\"} "
+              io << p[:value].to_s
+              io << "\n"
+            end
+          end
+        end
       end
 
       Kemal.run

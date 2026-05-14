@@ -9,11 +9,14 @@ function updateClock() {
 function refreshAdapters() {
   var promises = [];
   for (var name in store.adapters) {
-    promises.push(
-      API.latest(name).then(function (data) {
-        store.adapters[data.name].series = data.series;
-      }),
-    );
+    // Capture name in a closure to avoid the loop variable changing
+    (function (adapterName) {
+      promises.push(
+        API.latest(adapterName).then(function (data) {
+          store.adapters[data.name].series = data.series;
+        }),
+      );
+    })(name);
   }
   return Promise.all(promises);
 }
@@ -27,11 +30,17 @@ function discoverAdapters() {
     var promises = [];
     for (var name in names) {
       if (store.adapters[name]) continue;
-      promises.push(
-        API.latest(name).then(function (data) {
-          store.adapters[data.name] = { name: data.name, series: data.series };
-        }),
-      );
+      // Capture name in a closure to avoid the loop variable changing
+      (function (adapterName) {
+        promises.push(
+          API.latest(adapterName).then(function (data) {
+            store.adapters[data.name] = {
+              name: data.name,
+              series: data.series,
+            };
+          }),
+        );
+      })(name);
     }
     return Promise.all(promises);
   });

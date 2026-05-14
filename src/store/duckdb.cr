@@ -4,7 +4,7 @@ require "db"
 module Faro::Store
   class DuckDB
     getter path : String
-    @connection : DB::Connection
+    getter connection : DB::Connection
 
     BUCKET_SIZE = 1.minute
 

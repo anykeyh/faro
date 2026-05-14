@@ -1,32 +1,53 @@
 require "./config"
+require "./probes"
 require "./runners/container"
 require "./store/duckdb"
+require "./store/bucketing"
 require "./api/server"
 
 module Faro
   DEFAULT_INTERVAL = 10.0
 
   def self.run(config : Config)
-    store = Store::DuckDB.new(config.db)
-    store.setup_schema
+    db = Store::DuckDB.new(config.db)
+    db.setup_schema
+    store = Store::Bucketing.new(db)
 
     runner = RunnerContainer.new
 
+    # Temp files for embedded probes — cleaned up on exit.
+    temp_files = [] of String
+
     config.adapters.each do |adapter|
-      interval = adapter.collect_interval || DEFAULT_INTERVAL
-      interval = Math.max(interval, 1.0)
-      sleep_span = interval.seconds
+      sleep_span = adapter.effective_interval.seconds
+
+      raw_run = adapter.run
+      if raw_run.nil?
+        STDERR.puts "Adapter '#{adapter.name}' has no 'run' directive"
+        next
+      end
+
+      # Resolve $name → embedded script or filesystem path.
+      script_path = if raw_run.starts_with?('$')
+                      name = raw_run.lchop('$')
+                      content = EmbeddedProbes.resolve(raw_run)
+                      if content.nil?
+                        STDERR.puts "Unknown probe '#{name}' for adapter '#{adapter.name}'"
+                        next
+                      end
+                      tmp = File.tempfile("faro_#{name}", ".sh") do |f|
+                        f.print(content)
+                      end
+                      temp_files << tmp.path
+                      tmp.path
+                    else
+                      raw_run
+                    end
 
       spawn(name: "adapter:#{adapter.name}") do
         loop do
           begin
-            if (script = adapter.run).nil?
-              STDERR.puts "Unknown adapter: #{adapter.name}"
-              sleep sleep_span
-              next
-            end
-
-            result = runner.run(script, args: adapter.args, env: adapter.env, via: adapter.via)
+            result = runner.run(script_path, args: adapter.args, env: adapter.env, via: adapter.via)
             if result.success?
               data = Hash(String, Float64).from_json(result.stdout)
               store.write(adapter.name, data, Time.utc)
@@ -39,6 +60,11 @@ module Faro
           sleep sleep_span
         end
       end
+    end
+
+    # Clean up temp files on exit.
+    at_exit do
+      temp_files.each { |p| File.delete(p) rescue nil }
     end
 
     server_config = config.server
