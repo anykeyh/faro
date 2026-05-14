@@ -98,18 +98,11 @@ jobs:
             faro-linux-arm64
           generate_release_notes: true
 
-      - name: Update latest tag
+      - name: Update latest tag and upload artifacts
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -f latest
           git push origin latest --force
-
-      - name: Upload to latest release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: latest
-          files: |
-            faro-linux-amd64/faro-linux-amd64
-            faro-linux-arm64/faro-linux-arm64
-          make_latest: false
+          gh release upload latest faro-linux-amd64/faro-linux-amd64 faro-linux-arm64/faro-linux-arm64 --clobber || \
+            gh release create latest faro-linux-amd64/faro-linux-amd64 faro-linux-arm64/faro-linux-arm64 --generate-notes --title "Latest build"
