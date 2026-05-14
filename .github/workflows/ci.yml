@@ -17,10 +17,8 @@ jobs:
         include:
           - os: ubuntu-24.04
             arch: amd64
-            duckdb_file: libduckdb-linux-amd64.zip
           - os: ubuntu-24.04-arm
             arch: arm64
-            duckdb_file: libduckdb-linux-aarch64.zip
 
     steps:
       - uses: actions/checkout@v6
@@ -33,20 +31,11 @@ jobs:
       - name: Install SQLite3 headers
         run: sudo apt-get update && sudo apt-get install -y libsqlite3-dev pkg-config
 
-      - name: Install DuckDB library
-        run: |
-          curl -fsSL \
-            "https://github.com/duckdb/duckdb/releases/download/${{ env.DUCKDB_VERSION }}/${{ matrix.duckdb_file }}" \
-            -o /tmp/libduckdb.zip
-          sudo unzip -o /tmp/libduckdb.zip -d /tmp/libduckdb
-          sudo cp /tmp/libduckdb/libduckdb.so /usr/local/lib/
-          sudo ldconfig
-
       - name: Install dependencies
         run: shards install --production
 
       - name: Run tests
-        run: crystal spec -Dduckdb
+        run: crystal spec
 
   build:
     name: Build (${{ matrix.arch }})

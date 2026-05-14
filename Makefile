@@ -45,7 +45,7 @@ tag:
 	  fi; \
 	fi; \
 	\
-	sed -i "s/^version: .*/version: \"$$version\"/" shard.yml;
+	sed -i "s/^version: .*/version: \"$$version\"/" shard.yml; \
 	git add shard.yml; \
 	git commit -m "Release v$$version"; \
 	crystal spec; \
