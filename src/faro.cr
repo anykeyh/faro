@@ -11,11 +11,11 @@ module Faro
 
   def self.run(config : Config)
     # Setup logging
-    Faro::Log.setup(config.log_level)
+    Faro::Log.setup(config.log.level, config.log.output, config.log.error)
 
     db = Store::Db.new(config.db)
     db.setup_schema
-    store = Store::Bucketing.new(db)
+    store = Store::Bucketing.new(db, config.storage)
 
     runner = RunnerContainer.new
 
@@ -26,7 +26,9 @@ module Faro
 
     Faro::Log.info "Faro v#{version} starting"
     Faro::Log.info "Database: #{config.db}"
-    Faro::Log.info "Log level: #{config.log_level}"
+    Faro::Log.info "Log level: #{config.log.level}"
+    Faro::Log.info "Log output: #{config.log.output}"
+    Faro::Log.info "Log error: #{config.log.error}"
 
     config.effective_adapters.each do |adapter|
       Faro::Log.info "Adapter: #{adapter.name} (run: #{adapter.run}, interval: #{adapter.effective_interval}s)"

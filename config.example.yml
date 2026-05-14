@@ -4,8 +4,13 @@
 
 db: "sqlite3://:memory:"
 
-# Log level: trace, debug, info, warn, error, fatal
-log_level: trace
+log:
+  # Level: trace, debug, info, warn, error, fatal
+  level: warn
+  # Output for info-level and below (trace, debug, info)
+  output: /dev/stdout
+  # Output for warn-level and above (warn, error, fatal)
+  error: /dev/stderr
 
 server:
   host: "0.0.0.0"

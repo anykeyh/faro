@@ -40,7 +40,7 @@ config = begin
   end
 end
 
-# CLI verbose flag overrides config log_level
-config.log_level = log_level if log_level == "debug"
+# CLI verbose flag overrides config log level
+config.log.level = log_level if log_level == "debug"
 
 Faro.run(config)

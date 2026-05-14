@@ -2,7 +2,8 @@
 
 Simple monitoring solution, but not _dumb-simple_. One binary installation. Compatible with most deployment.
 
-Perfect for quick monitoring of local servers, bare metal deployments, or small clusters. Compatible with Prometheus scrape format. When you need serious monitoring but don't want to waste a day on it.
+Perfect for quick monitoring of embedded system, local servers, bare metal deployments, or small clusters. Compatible with Prometheus scrape format. 
+When you need a serious monitoring setup but don't want to waste a day on it.
 
 ---
 
@@ -68,26 +69,75 @@ This will start **all system probes** automatically (see below).
 
 #### `db`
 
-Storage backend. Use `":memory:"` for ephemeral data, or a file path for persistence:
+Storage backend. Supports both **SQLite3** and **DuckDB** via the URI scheme:
 
 ```yaml
-db: "./data/faro.db"
+db: "sqlite3://:memory:"               # ephemeral with SQLite3
+db: "duckdb://:memory:"                # ephemeral with DuckDB
+db: "sqlite3:///data/faro.db"          # persistent file (SQLite3)
+db: "duckdb:///data/faro.duckdb"       # persistent file (DuckDB)
 ```
 
-#### `log_level`
+### Storage & compaction
 
-Controls the verbosity of log output. Default: `warn`.
+Faro uses a **multi-tier bucket system** to keep the database small and queries fast.
 
-| Level   | Description |
-|---------|-------------|
-| `trace` | Full debug trace — each probe run, each metric written |
-| `debug` | Detailed information (e.g. adapter health changes) |
-| `info`  | Startup info — adapters, thresholds, latches loaded |
-| `warn`  | Only warnings and errors (default) |
-| `error` | Only errors |
-| `fatal` | Only fatal errors |
+| Tier | Resolution | Retention |
+|------|------------|-----------|
+| Raw  | Each sample as received | ~5 minutes |
+| 1m   | Aggregated per minute   | ~1 hour   |
+| 5m   | Aggregated per 5 minutes | ~1 hour   |
+| 10m  | Aggregated per 10 minutes | ~6 hours |
+| 30m  | Aggregated per 30 minutes | ~24 hours |
+| 1h   | Aggregated per hour       | ~72 hours |
+| 6h   | Aggregated per 6 hours    | ~7 days   |
+| 1d   | Aggregated per day        | ~30 days  |
 
-Can also be set via CLI flag `--verbose` / `-v`, which overrides the config value to `debug`.
+When new data arrives, Faro:
+1. Writes it as a **raw** row with the exact timestamp
+2. Older raw rows are **compacted** into coarser buckets using Welford online statistics (avg, min, max, variance preserved)
+3. Data older than the last tier's age is **purged** automatically
+
+This means a probe running every 5 seconds produces ~12 raw rows/minute, which become 1 row in the 1m tier, then 1 row in the 5m tier, and so on. The database stays at a predictable size regardless of uptime.
+
+The compaction schedule is fully configurable via the `storage` section:
+
+```yaml
+storage:
+  # Compaction tiers: each tier defines bucket size and minimum age
+  # before data is compacted into it.
+  tiers:
+    - size: 1m
+      age: 5m
+    - size: 5m
+      age: 1h
+    - size: 1h
+      age: 72h
+
+  # Data older than this is hard-deleted
+  purge_after: 365d
+```
+
+The `size` and `age` fields accept duration strings (`5s`, `1m`, `5m`, `1h`, `1d`). Tiers are sorted by size automatically. If omitted, the defaults above apply.
+
+#### `log`
+
+Controls logging. All three fields are optional with sensible defaults.
+
+```yaml
+log:
+  level: warn      # trace, debug, info, warn, error, fatal
+  output: /dev/stdout  # where info-level and below go
+  error: /dev/stderr   # where warn-level and above go
+```
+
+| Field    | Default        | Description |
+|----------|----------------|-------------|
+| `level`  | `warn`         | Minimum severity to emit |
+| `output` | `/dev/stdout`  | Receives trace, debug, info messages |
+| `error`  | `/dev/stderr`  | Receives warn, error, fatal messages |
+
+The `level` can also be set via CLI flag `--verbose` / `-v`, which overrides the config to `debug`.
 
 #### `server`
 
@@ -161,6 +211,19 @@ probes: []
 #### `adapters`
 
 Each adapter defines a probe to run periodically. An adapter with the same name as a system probe **overrides** its interval or configuration.
+
+Every adapter automatically gets a `_alive` metric — `1.0` when the probe succeeds, `0.0` when it fails or times out. This powers the built-in `meta.healthy` metric (all alive = 1.0, any down = 0.0) and can be used in thresholds:
+
+```yaml
+thresholds:
+  - name: alive-check
+    metric: cpu._alive
+    latches:
+      - name: dead
+        set: 0.5
+        release: 0.9
+        sustain: 10
+```
 
 | Field              | Description |
 |--------------------|-------------|

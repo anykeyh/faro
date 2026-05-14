@@ -1,30 +1,27 @@
 require "./db"
+require "../config"
 
 module Faro::Store
   class Bucketing
-    record Tier, size : Time::Span, age : Time::Span
-
-    TIERS = [
-      Tier.new(size: 1.minute,   age: 5.minutes),
-      Tier.new(size: 5.minutes,  age: 1.hour),
-      Tier.new(size: 10.minutes, age: 6.hours),
-      Tier.new(size: 30.minutes, age: 24.hours),
-      Tier.new(size: 1.hour,     age: 72.hours),
-      Tier.new(size: 6.hours,    age: 168.hours),
-      Tier.new(size: 1.day,      age: 720.hours),
-    ]
-
-    PURGE_AGE = 365.days
-
     @db : AbstractBackend
     # Key: "name\0metric\0tier_index" → bucket number of latest write
     @last_seen : Hash(String, Int64)
     # Pending sustain timers: "name\0metric\0latch" → Time when value first crossed set
     @pending_open : Hash(String, Time)
+    # Compaction tiers
+    @tiers : Array(NamedTuple(size: Time::Span, age: Time::Span))
+    # Purge age as a Time::Span
+    @purge_age : Time::Span
 
-    def initialize(@db : AbstractBackend)
+    def initialize(@db : AbstractBackend, storage_config : Faro::Config::StorageConfig = Faro::Config::StorageConfig.new)
       @last_seen = {} of String => Int64
       @pending_open = {} of String => Time
+
+      @tiers = storage_config.effective_tiers.map do |t|
+        {size: t.effective_size.seconds, age: t.effective_age.seconds}
+      end
+
+      @purge_age = storage_config.effective_purge_after.seconds
     end
 
     # ── Write ────────────────────────────────────────────────────────────────
@@ -41,9 +38,9 @@ module Faro::Store
         )
       end
 
-      TIERS.each_with_index do |tier, idx|
+      @tiers.each_with_index do |tier, idx|
         data.each do |metric, _|
-          check_tier(adapter_name, metric, tier, idx, timestamp)
+          check_tier(adapter_name, metric, tier[:size], tier[:age], idx, timestamp)
         end
       end
 
@@ -101,22 +98,14 @@ module Faro::Store
 
     # ── Threshold evaluation ────────────────────────────────────────
 
-    # Evaluate one latch: decide whether to open, close, or do nothing.
-    # Direction is inferred from set vs release:
-    #   set > release   => above-latch (open when value >= set)
-    #   set < release   => below-latch (open when value <= set)
-    # Sustain delays opening until the condition holds for `sustain` seconds.
-    # Closing is always instant.
     def evaluate_latch(threshold_name : String, metric : String, latch_name : String,
                        set : Float64, release : Float64, value : Float64,
                        sustain : Float64?, now : Time)
       timer_key = "#{threshold_name}\0#{metric}\0#{latch_name}"
 
       if set > release
-        # Above-latch
         if value >= set
           if sustain && sustain > 0
-            # Start or check timer
             first_seen = @pending_open[timer_key]?
             if first_seen.nil?
               @pending_open[timer_key] = now
@@ -127,7 +116,6 @@ module Faro::Store
               end
             end
           else
-            # No sustain — open immediately
             unless latch_open?(threshold_name, latch_name)
               open_latch(threshold_name, latch_name, metric, value, now)
             end
@@ -141,7 +129,6 @@ module Faro::Store
           @pending_open.delete(timer_key)
         end
       else
-        # Below-latch (set < release)
         if value <= set
           if sustain && sustain > 0
             first_seen = @pending_open[timer_key]?
@@ -171,19 +158,8 @@ module Faro::Store
 
     # ── Private ──────────────────────────────────────────────────────────────
 
-    # On each boundary crossing we check whether any newly-eligible bucket
-    # can be compacted.  The algorithm:
-    #
-    #   eligible_cutoff = current_bucket - (tier.age / tier.size)
-    #   compact every bucket N in [last_compacted, eligible_cutoff)
-    #   last_compacted = eligible_cutoff
-    #
-    # In steady state (boundary crosses one at a time) this compacts at
-    # most 1 bucket per call.  If there's a gap, it compacts the whole
-    # range in one go via SQL grouping.
-
-    private def check_tier(name : String, metric : String, tier : Tier, tier_idx : Int32, now : Time)
-      current_bucket = floor_to(now, tier.size)
+    private def check_tier(name : String, metric : String, size : Time::Span, age : Time::Span, tier_idx : Int32, now : Time)
+      current_bucket = floor_to(now, size)
       key = "#{name}\0#{metric}\0#{tier_idx}"
       last_seen = @last_seen[key]?
 
@@ -194,26 +170,20 @@ module Faro::Store
 
       return if current_bucket == last_seen
 
-      # All buckets up to this cutoff are now old enough to compact.
-      age_in_buckets = (tier.age.total_seconds / tier.size.total_seconds).to_i64
+      age_in_buckets = (age.total_seconds / size.total_seconds).to_i64
       cutoff = current_bucket - age_in_buckets
 
-      # Track how far we've already compacted (by convention we store it
-      # as the same key — a frozen bucket number is already compacted).
       compacted_key = "c:#{key}"
       already = @last_seen[compacted_key]? || 0_i64
 
       if cutoff > already
-        compact_range_unified(name, metric, already, cutoff, tier.size)
+        compact_range_unified(name, metric, already, cutoff, size)
         @last_seen[compacted_key] = cutoff
       end
 
       @last_seen[key] = current_bucket
     end
 
-    # Compact all rows whose bucket numbers are in [start_num, end_num).
-    # Reads them in one SQL query, groups by bucket, and Welford-merges
-    # each group into a compacted row.
     private def compact_range_unified(name : String, metric : String, start_num : Int64, end_num : Int64, size : Time::Span)
       return if start_num >= end_num
 
@@ -233,20 +203,17 @@ module Faro::Store
       end
       return if rows.empty?
 
-      # Group rows by their bucket number (floor to size).
       groups = {} of Int64 => Array(typeof(rows.first))
       rows.each do |r|
         num = floor_to(r[:from_ts], size)
         (groups[num] ||= [] of typeof(rows.first)) << r
       end
 
-      # Delete all source rows in the range.
       @db.connection.exec(
         "DELETE FROM sensors WHERE name = ? AND metric = ? AND from_ts >= ? AND from_ts < ?",
         name, metric, start_time, end_time
       )
 
-      # Insert compacted rows.
       groups.each do |num, g_rows|
         bs = bucket_start_from_number(num, size)
         be = bs + size
@@ -297,7 +264,7 @@ module Faro::Store
     end
 
     private def purge_old(now : Time)
-      cutoff = now - PURGE_AGE
+      cutoff = now - @purge_age
       @db.connection.exec("DELETE FROM sensors WHERE from_ts < ?", cutoff)
     end
 

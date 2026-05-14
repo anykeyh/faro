@@ -10,7 +10,78 @@ struct Faro::Config
   property thresholds : Array(ThresholdConfig) = [] of ThresholdConfig
   property notifications : Array(NotificationConfig) = [] of NotificationConfig
   property server : ServerConfig = ServerConfig.from_yaml("host: 0.0.0.0\nport: 3000\n")
-  property log_level : String = "warn"
+  property log : LogConfig = LogConfig.new
+  property storage : StorageConfig = StorageConfig.new
+
+  struct LogConfig
+    include YAML::Serializable
+
+    property level : String = "warn"
+    property output : String = "/dev/stdout"
+    property error : String = "/dev/stderr"
+
+    def initialize(@level : String = "warn", @output : String = "/dev/stdout", @error : String = "/dev/stderr")
+    end
+  end
+
+  struct StorageConfig
+    include YAML::Serializable
+
+    # Compaction tiers: each entry defines a bucket size and minimum age
+    # before data is compacted into that tier. If nil, built-in defaults are used.
+    property tiers : Array(TierConfig)?
+
+    # Data older than this is hard-deleted (seconds). Default: 365 days.
+    @[YAML::Field(converter: Faro::NonNilTimeStringConverter)]
+    property purge_after : Float64 = 31536000.0  # 365 days
+
+    def initialize(@tiers : Array(TierConfig)? = nil, @purge_after : Float64 = 31536000.0)
+    end
+
+    struct TierConfig
+      include YAML::Serializable
+
+      @[YAML::Field(converter: Faro::NonNilTimeStringConverter)]
+      property size : Float64 = 60.0  # bucket duration in seconds
+
+      @[YAML::Field(converter: Faro::NonNilTimeStringConverter)]
+      property age : Float64 = 300.0   # minimum age before compaction into this tier
+
+      def initialize(@size : Float64 = 60.0, @age : Float64 = 300.0)
+      end
+
+      def effective_size : Float64
+        @size
+      end
+
+      def effective_age : Float64
+        @age
+      end
+    end
+
+    # Returns effective tiers sorted by size, or the built-in defaults.
+    def effective_tiers : Array(TierConfig)
+      if (t = @tiers)
+        t.sort_by(&.effective_size)
+      else
+        DEFAULT_TIERS
+      end
+    end
+
+    def effective_purge_after : Float64
+      @purge_after
+    end
+
+    DEFAULT_TIERS = [
+      TierConfig.new(1.minutes.total_seconds, 5.minutes.total_seconds),
+      TierConfig.new(5.minutes.total_seconds, 1.hours.total_seconds),
+      TierConfig.new(10.minutes.total_seconds, 6.hours.total_seconds),
+      TierConfig.new(30.minutes.total_seconds, 24.hours.total_seconds),
+      TierConfig.new(1.hours.total_seconds, 72.hours.total_seconds),
+      TierConfig.new(6.hours.total_seconds, 168.hours.total_seconds),
+      TierConfig.new(24.hours.total_seconds, 720.hours.total_seconds),
+    ]
+  end
 
   struct AdapterConfig
     include YAML::Serializable
@@ -199,6 +270,19 @@ module Faro::TimeStringConverter
   end
 
   def self.to_yaml(value : Float64?, builder : YAML::Nodes::Builder)
+    value.to_yaml(builder)
+  end
+end
+
+# Same as TimeStringConverter but returns Float64 (not nilable).
+# For use on fields that must always have a value.
+module Faro::NonNilTimeStringConverter
+  def self.from_yaml(ctx : YAML::ParseContext, node : YAML::Nodes::Node) : Float64
+    result = Faro::TimeStringConverter.from_yaml(ctx, node)
+    result || 0.0
+  end
+
+  def self.to_yaml(value : Float64, builder : YAML::Nodes::Builder)
     value.to_yaml(builder)
   end
 end
