@@ -9,7 +9,7 @@ When you need a serious monitoring setup but don't want to waste a day on it.
 
 ## Features
 
-- **Zero-dependency binary** — compiled Crystal + embedded DuckDB. No Postgres, no Redis, no external database.
+- **Zero-dependency binary** — compiled Crystal + embedded SQLite3. No Postgres, no Redis, no external database.
 - **Built-in probes** — CPU, memory, disk, network, load, swap, processes, GPU, thermal, HTTP checks, and more. Just reference them by name.
 - **Custom probes** — bring your own shell scripts or binaries. Faro runs anything that writes JSON to stdout.
 - **Container-aware** — run probes inside Docker containers with `via: docker`.
@@ -17,7 +17,7 @@ When you need a serious monitoring setup but don't want to waste a day on it.
 - **Web dashboard** — drag-and-drop grid with indicator cards, live graphs, and alert status. Built with Mithril.js, served by the binary itself.
 - **Prometheus endpoint** — `/metrics` exposes all latest values for scraping.
 - **Notifications** — run any script (Slack webhook, PagerDuty, email) on latch open/close events.
-- **Embedded storage** — DuckDB powers retention and querying. No separate storage process needed.
+- **Embedded storage** — SQLite3 powers retention and querying. No separate storage process needed.
 
 ## Installation
 
@@ -43,7 +43,7 @@ cd faro
 crystal build src/main.cr --release
 ```
 
-Requires Crystal 1.20+ and DuckDB development headers.
+Requires Crystal 1.20+ and SQLite3 development headers.
 
 ## Configuration
 
