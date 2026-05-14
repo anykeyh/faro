@@ -28,8 +28,8 @@ module Faro
       broadcast.append(stderr_backend, ::Log::Severity::Warn)
 
       ::Log.setup do |c|
-        c.bind "*",     :warn,  broadcast  # fallback
-        c.bind "faro",  log_level, broadcast
+        c.bind "*", :warn, broadcast # fallback
+        c.bind "faro", log_level, broadcast
         c.bind "kemal", log_level, broadcast
       end
     end
@@ -56,13 +56,13 @@ module Faro
 
     private def self.parse_level(level : String) : ::Log::Severity
       case level.downcase
-      when "trace"  then ::Log::Severity::Trace
-      when "debug"  then ::Log::Severity::Debug
-      when "info"   then ::Log::Severity::Info
-      when "warn"   then ::Log::Severity::Warn
-      when "error"  then ::Log::Severity::Error
-      when "fatal"  then ::Log::Severity::Fatal
-      else               ::Log::Severity::Warn
+      when "trace" then ::Log::Severity::Trace
+      when "debug" then ::Log::Severity::Debug
+      when "info"  then ::Log::Severity::Info
+      when "warn"  then ::Log::Severity::Warn
+      when "error" then ::Log::Severity::Error
+      when "fatal" then ::Log::Severity::Fatal
+      else              ::Log::Severity::Warn
       end
     end
 

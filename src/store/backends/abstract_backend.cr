@@ -11,8 +11,7 @@ module Faro::Store
     abstract def write(adapter_name : String, data : Hash(String, Float64), timestamp : Time) : Nil
     abstract def query(adapter_name : String, since : Time, finish : Time) : Array(NamedTuple(
       metric: String, value: Float64?, avg: Float64?, k: Int32, dev: Float64,
-      min: Float64?, max: Float64?, from_ts: Time, to_ts: Time, resolved_at: Time
-    ))
+      min: Float64?, max: Float64?, from_ts: Time, to_ts: Time, resolved_at: Time))
     abstract def list_names : Array(NamedTuple(name: String, metric: String))
     abstract def latest_value(adapter_name : String, metric : String) : Float64?
     abstract def latch_open?(threshold_name : String, latch_name : String) : Bool
@@ -25,7 +24,7 @@ module Faro::Store
     protected def read_existing(name, metric, bucket_start)
       existing = nil
       @connection.query("SELECT k, avg, dev, min, max FROM sensors WHERE name = ? AND metric = ? AND from_ts = ?",
-                         name, metric, bucket_start) do |rs|
+        name, metric, bucket_start) do |rs|
         rs.each { existing = {k: rs.read(Int32), avg: rs.read(Float64), dev: rs.read(Float64), min: rs.read(Float64), max: rs.read(Float64)} }
       end
       existing

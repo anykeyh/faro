@@ -18,7 +18,7 @@ module Faro::API
       Kemal.config.env = "production"
 
       # Optional HTTP Basic Auth
-      if (auth = server_config.basic_auth)
+      if auth = server_config.basic_auth
         Kemal.config.add_handler(
           Faro::API::BasicAuthHandler.new(auth.username, auth.password)
         )
@@ -48,7 +48,7 @@ module Faro::API
           request_path = env.request.path
 
           # Try embedded frontend first (available in --release builds)
-          if (content = EmbeddedFrontend.get(request_path))
+          if content = EmbeddedFrontend.get(request_path)
             content_type = case request_path
                            when /\.html?$/ then "text/html; charset=utf-8"
                            when /\.css$/   then "text/css; charset=utf-8"
@@ -80,8 +80,8 @@ module Faro::API
       get "/api/sensors/:name" do |env|
         env.response.content_type = "application/json"
 
-        name   = env.params.url["name"]
-        since  = parse_time(env.params.query["since"]?) || (Time.utc - 1.hour)
+        name = env.params.url["name"]
+        since = parse_time(env.params.query["since"]?) || (Time.utc - 1.hour)
         finish = parse_time(env.params.query["until"]?) || Time.utc
 
         rows = @store.query(name, since, finish)
@@ -132,18 +132,18 @@ module Faro::API
         result = @thresholds.map do |t|
           latch_list = t.latches.map do |l|
             {
-              name:     l.name,
-              set:      l.set,
-              release:  l.release,
-              sustain:  l.sustain,
-              open:     @store.latch_open?(t.name, l.name),
+              name:    l.name,
+              set:     l.set,
+              release: l.release,
+              sustain: l.sustain,
+              open:    @store.latch_open?(t.name, l.name),
             }
           end
 
           {
-            adapter:   t.name,
-            metric:    t.metric,
-            latches:   latch_list,
+            adapter: t.name,
+            metric:  t.metric,
+            latches: latch_list,
           }
         end
 
@@ -163,8 +163,9 @@ module Faro::API
           value = @store.latest_value(name, metric)
           next if value.nil?
 
+          v = value.as(Float64)
           metrics[name] ||= [] of NamedTuple(metric: String, value: Float64)
-          metrics[name] << {metric: metric, value: value.not_nil!}
+          metrics[name] << {metric: metric, value: v}
         end
 
         String.build do |io|

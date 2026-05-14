@@ -31,54 +31,7 @@ module Faro
     Faro::Log.info "Log error: #{config.log.error}"
 
     config.effective_adapters.each do |adapter|
-      Faro::Log.info "Adapter: #{adapter.name} (run: #{adapter.run}, interval: #{adapter.effective_interval}s)"
-
-      sleep_span = adapter.effective_interval.seconds
-
-      raw_run = adapter.run
-      if raw_run.nil?
-        Faro::Log.warn "Adapter '#{adapter.name}' has no 'run' directive, skipping"
-        next
-      end
-
-      # Resolve $name → embedded script or filesystem path.
-      script_path = if raw_run.starts_with?('$')
-                      name = raw_run.lchop('$')
-                      content = EmbeddedProbes.resolve(raw_run)
-                      if content.nil?
-                        Faro::Log.warn "Unknown probe '#{name}' for adapter '#{adapter.name}', skipping"
-                        next
-                      end
-                      tmp = File.tempfile("faro_#{name}", ".sh") do |f|
-                        f.print(content)
-                      end
-                      File.chmod(tmp.path, 0o755)
-                      temp_files << tmp.path
-                      tmp.path
-                    else
-                      raw_run
-                    end
-
-      spawn(name: "adapter:#{adapter.name}") do
-        loop do
-          begin
-            result = runner.run(script_path, args: adapter.args, env: adapter.env, via: adapter.via)
-            if result.success?
-              data = Hash(String, Float64).from_json(result.stdout)
-              data["_alive"] = 1.0
-              store.write(adapter.name, data, Time.utc)
-              Faro::Log.trace "[#{adapter.name}] ok (#{data.size} metrics)"
-            else
-              Faro::Log.warn "[#{adapter.name}] exit #{result.exit_code}: #{result.stderr.strip}"
-              store.write(adapter.name, {"_alive" => 0.0}, Time.utc)
-            end
-          rescue ex
-            Faro::Log.warn "ERROR in adapter '#{adapter.name}': #{ex.message}"
-            store.write(adapter.name, {"_alive" => 0.0}, Time.utc)
-          end
-          sleep sleep_span
-        end
-      end
+      spawn_adapter(adapter, runner, store, temp_files)
     end
 
     # Meta healthy probe — periodically checks that all adapters are alive
@@ -116,6 +69,56 @@ module Faro
 
     server_config = config.server
     API::Server.new(store, config.thresholds, server_config).start
+  end
+
+  private def self.spawn_adapter(adapter, runner, store, temp_files)
+    Faro::Log.info "Adapter: #{adapter.name} (run: #{adapter.run}, interval: #{adapter.effective_interval}s)"
+
+    sleep_span = adapter.effective_interval.seconds
+
+    raw_run = adapter.run
+    if raw_run.nil?
+      Faro::Log.warn "Adapter '#{adapter.name}' has no 'run' directive, skipping"
+      return
+    end
+
+    script_path = if raw_run.starts_with?('$')
+                    name = raw_run.lchop('$')
+                    content = EmbeddedProbes.resolve(raw_run)
+                    if content.nil?
+                      Faro::Log.warn "Unknown probe '#{name}' for adapter '#{adapter.name}', skipping"
+                      return
+                    end
+                    tmp = File.tempfile("faro_#{name}", ".sh") do |f|
+                      f.print(content)
+                    end
+                    File.chmod(tmp.path, 0o755)
+                    temp_files << tmp.path
+                    tmp.path
+                  else
+                    raw_run
+                  end
+
+    spawn(name: "adapter:#{adapter.name}") do
+      loop do
+        begin
+          result = runner.run(script_path, args: adapter.args, env: adapter.env, via: adapter.via)
+          if result.success?
+            data = Hash(String, Float64).from_json(result.stdout)
+            data["_alive"] = 1.0
+            store.write(adapter.name, data, Time.utc)
+            Faro::Log.trace "[#{adapter.name}] ok (#{data.size} metrics)"
+          else
+            Faro::Log.warn "[#{adapter.name}] exit #{result.exit_code}: #{result.stderr.strip}"
+            store.write(adapter.name, {"_alive" => 0.0}, Time.utc)
+          end
+        rescue ex
+          Faro::Log.warn "ERROR in adapter '#{adapter.name}': #{ex.message}"
+          store.write(adapter.name, {"_alive" => 0.0}, Time.utc)
+        end
+        sleep sleep_span
+      end
+    end
   end
 
   def self.version : String

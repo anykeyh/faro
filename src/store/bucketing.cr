@@ -53,8 +53,7 @@ module Faro::Store
 
     def query(adapter_name : String, since : Time, finish : Time) : Array(NamedTuple(
       metric: String, value: Float64?, avg: Float64?, k: Int32, dev: Float64,
-      min: Float64?, max: Float64?, from_ts: Time, to_ts: Time, resolved_at: Time
-    ))
+      min: Float64?, max: Float64?, from_ts: Time, to_ts: Time, resolved_at: Time))
       @db.query(adapter_name, since, finish)
     end
 
@@ -105,54 +104,47 @@ module Faro::Store
 
       if set > release
         if value >= set
-          if sustain && sustain > 0
-            first_seen = @pending_open[timer_key]?
-            if first_seen.nil?
-              @pending_open[timer_key] = now
-            elsif (now - first_seen).total_seconds >= sustain
-              @pending_open.delete(timer_key)
-              unless latch_open?(threshold_name, latch_name)
-                open_latch(threshold_name, latch_name, metric, value, now)
-              end
-            end
-          else
-            unless latch_open?(threshold_name, latch_name)
-              open_latch(threshold_name, latch_name, metric, value, now)
-            end
-          end
+          check_sustain_open(timer_key, threshold_name, latch_name, metric, value, sustain, now)
         elsif value <= release
-          @pending_open.delete(timer_key)
-          if latch_open?(threshold_name, latch_name)
-            close_latch(threshold_name, latch_name, value, now)
-          end
+          close_if_open(timer_key, threshold_name, latch_name, value, now)
         else
           @pending_open.delete(timer_key)
         end
       else
         if value <= set
-          if sustain && sustain > 0
-            first_seen = @pending_open[timer_key]?
-            if first_seen.nil?
-              @pending_open[timer_key] = now
-            elsif (now - first_seen).total_seconds >= sustain
-              @pending_open.delete(timer_key)
-              unless latch_open?(threshold_name, latch_name)
-                open_latch(threshold_name, latch_name, metric, value, now)
-              end
-            end
-          else
-            unless latch_open?(threshold_name, latch_name)
-              open_latch(threshold_name, latch_name, metric, value, now)
-            end
-          end
+          check_sustain_open(timer_key, threshold_name, latch_name, metric, value, sustain, now)
         elsif value >= release
-          @pending_open.delete(timer_key)
-          if latch_open?(threshold_name, latch_name)
-            close_latch(threshold_name, latch_name, value, now)
-          end
+          close_if_open(timer_key, threshold_name, latch_name, value, now)
         else
           @pending_open.delete(timer_key)
         end
+      end
+    end
+
+    private def check_sustain_open(timer_key, threshold_name, latch_name, metric, value, sustain, now)
+      if sustain && sustain > 0
+        first_seen = @pending_open[timer_key]?
+        if first_seen.nil?
+          @pending_open[timer_key] = now
+        elsif (now - first_seen).total_seconds >= sustain
+          @pending_open.delete(timer_key)
+          open_unless_open(threshold_name, latch_name, metric, value, now)
+        end
+      else
+        open_unless_open(threshold_name, latch_name, metric, value, now)
+      end
+    end
+
+    private def open_unless_open(threshold_name, latch_name, metric, value, now)
+      unless latch_open?(threshold_name, latch_name)
+        open_latch(threshold_name, latch_name, metric, value, now)
+      end
+    end
+
+    private def close_if_open(timer_key, threshold_name, latch_name, value, now)
+      @pending_open.delete(timer_key)
+      if latch_open?(threshold_name, latch_name)
+        close_latch(threshold_name, latch_name, value, now)
       end
     end
 

@@ -20,8 +20,8 @@ module Faro::API
         "/components/dashboard.js"      => {{ read_file("frontend/components/dashboard.js") }},
       }
     {% else %}
-      {} of String => String
-    {% end %}
+              {} of String => String
+            {% end %}
 
     # Returns the content for a request path, or nil if not found.
     def self.get(request_path : String) : String?

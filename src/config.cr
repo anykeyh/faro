@@ -5,7 +5,7 @@ struct Faro::Config
   include YAML::Serializable
 
   property db : String = ":memory:"
-  property probes : Array(String)?  # nil = all system probes with 5s interval
+  property probes : Array(String)? # nil = all system probes with 5s interval
   property adapters : Array(AdapterConfig) = [] of AdapterConfig
   property thresholds : Array(ThresholdConfig) = [] of ThresholdConfig
   property notifications : Array(NotificationConfig) = [] of NotificationConfig
@@ -33,7 +33,7 @@ struct Faro::Config
 
     # Data older than this is hard-deleted (seconds). Default: 365 days.
     @[YAML::Field(converter: Faro::NonNilTimeStringConverter)]
-    property purge_after : Float64 = 31536000.0  # 365 days
+    property purge_after : Float64 = 31536000.0 # 365 days
 
     def initialize(@tiers : Array(TierConfig)? = nil, @purge_after : Float64 = 31536000.0)
     end
@@ -42,10 +42,10 @@ struct Faro::Config
       include YAML::Serializable
 
       @[YAML::Field(converter: Faro::NonNilTimeStringConverter)]
-      property size : Float64 = 60.0  # bucket duration in seconds
+      property size : Float64 = 60.0 # bucket duration in seconds
 
       @[YAML::Field(converter: Faro::NonNilTimeStringConverter)]
-      property age : Float64 = 300.0   # minimum age before compaction into this tier
+      property age : Float64 = 300.0 # minimum age before compaction into this tier
 
       def initialize(@size : Float64 = 60.0, @age : Float64 = 300.0)
       end
@@ -61,7 +61,7 @@ struct Faro::Config
 
     # Returns effective tiers sorted by size, or the built-in defaults.
     def effective_tiers : Array(TierConfig)
-      if (t = @tiers)
+      if t = @tiers
         t.sort_by(&.effective_size)
       else
         DEFAULT_TIERS
@@ -92,9 +92,9 @@ struct Faro::Config
     property env : Hash(String, String)?
     property via : ViaConfig?
     @[YAML::Field(converter: Faro::TimeStringConverter)]
-    property collect_interval : Float64?  # seconds, supports "10s", "5m", "1h"
+    property collect_interval : Float64? # seconds, supports "10s", "5m", "1h"
     @[YAML::Field(converter: Faro::TimeStringConverter)]
-    property timeout : Float64?           # seconds, optional
+    property timeout : Float64? # seconds, optional
 
     # Convenience constructor for auto-generated system probes.
     def initialize(@name : String, @run : String?, @collect_interval : Float64?,
@@ -113,7 +113,7 @@ struct Faro::Config
 
     property host : String = "0.0.0.0"
     property port : Int32 = 3000
-    property basic_auth : BasicAuthConfig?  # nil = no auth
+    property basic_auth : BasicAuthConfig? # nil = no auth
 
     struct BasicAuthConfig
       include YAML::Serializable
@@ -153,7 +153,7 @@ struct Faro::Config
     @[YAML::Field(converter: Faro::NumberStringConverter)]
     property release : Float64
     @[YAML::Field(converter: Faro::TimeStringConverter)]
-    property sustain : Float64?  # seconds, optional
+    property sustain : Float64? # seconds, optional
 
     def validate!
       if set == release
@@ -229,7 +229,7 @@ end
 
 # Helper: index an array of structs by a key proc
 module Enumerable
-  def index_by(&block : T -> K) : Hash(K, T) forall T, K
+  def index_by(& : T -> K) : Hash(K, T) forall T, K
     h = {} of K => T
     each { |e| h[yield e] = e }
     h

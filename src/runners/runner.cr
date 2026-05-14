@@ -5,7 +5,7 @@ struct Faro::RunnerResult
   getter stdout : String
   getter stderr : String
   getter exit_code : Int32
-  getter signaled : Bool
+  getter? signaled : Bool
 
   def initialize(@stdout, @stderr, @exit_code, @signaled = false)
   end

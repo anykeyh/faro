@@ -10,9 +10,9 @@ module Faro::Store
     DUCKDB_SCHEME = "duckdb://"
     SQLITE_SCHEME = "sqlite3://"
 
-    MEMORY_TAG    = ":memory:"
-    ENCODED_MEMORY_SQLITE  = "%3Amemory%3A"
-    ENCODED_MEMORY_DUCKDB  = "[:memory:]"
+    MEMORY_TAG            = ":memory:"
+    ENCODED_MEMORY_SQLITE = "%3Amemory%3A"
+    ENCODED_MEMORY_DUCKDB = "[:memory:]"
 
     def self.new(uri : String) : AbstractBackend
       normalized = normalize_uri(uri)

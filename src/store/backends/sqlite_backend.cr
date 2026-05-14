@@ -10,16 +10,16 @@ module Faro::Store
 
     def setup_schema : Nil
       @connection.exec("CREATE TABLE IF NOT EXISTS sensors (" \
-        "name TEXT NOT NULL, metric TEXT NOT NULL, value REAL, avg REAL," \
-        "k INTEGER NOT NULL DEFAULT 1, dev REAL NOT NULL DEFAULT 0.0, min REAL, max REAL," \
-        "from_ts TIMESTAMP NOT NULL, to_ts TIMESTAMP NOT NULL, resolved_at TIMESTAMP NOT NULL," \
-        "PRIMARY KEY (name, metric, from_ts))")
+                       "name TEXT NOT NULL, metric TEXT NOT NULL, value REAL, avg REAL," \
+                       "k INTEGER NOT NULL DEFAULT 1, dev REAL NOT NULL DEFAULT 0.0, min REAL, max REAL," \
+                       "from_ts TIMESTAMP NOT NULL, to_ts TIMESTAMP NOT NULL, resolved_at TIMESTAMP NOT NULL," \
+                       "PRIMARY KEY (name, metric, from_ts))")
 
       @connection.exec("CREATE INDEX IF NOT EXISTS idx_sensors_name_from ON sensors (name, from_ts)")
 
       @connection.exec("CREATE TABLE IF NOT EXISTS latch_events (" \
-        "id INTEGER PRIMARY KEY, name TEXT NOT NULL, latch TEXT NOT NULL, metric TEXT NOT NULL," \
-        "value REAL NOT NULL, from_ts TIMESTAMP NOT NULL, to_ts TIMESTAMP, acknowledged INTEGER DEFAULT 0)")
+                       "id INTEGER PRIMARY KEY, name TEXT NOT NULL, latch TEXT NOT NULL, metric TEXT NOT NULL," \
+                       "value REAL NOT NULL, from_ts TIMESTAMP NOT NULL, to_ts TIMESTAMP, acknowledged INTEGER DEFAULT 0)")
 
       @connection.exec("CREATE INDEX IF NOT EXISTS idx_latch_events_name ON latch_events (name, latch)")
     end
@@ -27,7 +27,7 @@ module Faro::Store
     def write(adapter_name : String, data : Hash(String, Float64), timestamp : Time) : Nil
       return if data.empty?
       bucket_start = bucket_floor(timestamp)
-      bucket_end   = bucket_start + BUCKET_SIZE
+      bucket_end = bucket_start + BUCKET_SIZE
       data.each do |metric, value|
         existing = read_existing(adapter_name, metric, bucket_start)
         if existing.nil?
@@ -39,7 +39,7 @@ module Faro::Store
           )
         else
           k_old, avg_old, dev_old, min_old, max_old = existing[:k], existing[:avg], existing[:dev], existing[:min], existing[:max]
-          k_new   = k_old + 1
+          k_new = k_old + 1
           avg_new = avg_old + (value - avg_old) / k_new
           dev_new = dev_old + (value - avg_old) * (value - avg_new)
           min_new = Math.min(min_old, value)
@@ -57,12 +57,10 @@ module Faro::Store
 
     def query(adapter_name : String, since : Time, finish : Time) : Array(NamedTuple(
       metric: String, value: Float64?, avg: Float64?, k: Int32, dev: Float64,
-      min: Float64?, max: Float64?, from_ts: Time, to_ts: Time, resolved_at: Time
-    ))
+      min: Float64?, max: Float64?, from_ts: Time, to_ts: Time, resolved_at: Time))
       rows = [] of NamedTuple(
         metric: String, value: Float64?, avg: Float64?, k: Int32, dev: Float64,
-        min: Float64?, max: Float64?, from_ts: Time, to_ts: Time, resolved_at: Time
-      )
+        min: Float64?, max: Float64?, from_ts: Time, to_ts: Time, resolved_at: Time)
       sql = "SELECT metric, value, avg, k, dev, min, max, from_ts, to_ts, resolved_at " \
             "FROM sensors WHERE name = ? AND from_ts >= ? AND from_ts < ? ORDER BY from_ts ASC"
       @connection.query(sql, adapter_name, since, finish) do |rs|

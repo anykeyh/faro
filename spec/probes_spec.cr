@@ -4,7 +4,7 @@ require "../src/probes"
 
 describe Faro::EmbeddedProbes do
   it "has all expected probes" do
-    Faro::EmbeddedProbes::PROBES.keys.sort.should eq [
+    Faro::EmbeddedProbes::PROBES.keys.sort!.should eq [
       "cpu", "curl_check", "disk", "gpu", "load",
       "memory", "network", "processes", "swap",
       "system", "thermal",
@@ -14,8 +14,9 @@ describe Faro::EmbeddedProbes do
   it "resolves $cpu to a non-empty script" do
     script = Faro::EmbeddedProbes.resolve("$cpu")
     script.should_not be_nil
-    script.not_nil!.should_not be_empty
-    script.not_nil!.should contain("#!/bin/sh")
+    s = script.as(String)
+    s.should_not be_empty
+    s.should contain("#!/bin/sh")
   end
 
   it "returns nil for unknown $name" do
@@ -57,14 +58,14 @@ def verify_numeric_probe(name : String, script : String, env : Hash(String, Stri
 end
 
 describe "default probes (numeric JSON)" do
-  verify_numeric_probe("cpu",     Faro::EmbeddedProbes::PROBES["cpu"])
-  verify_numeric_probe("memory",  Faro::EmbeddedProbes::PROBES["memory"])
-  verify_numeric_probe("disk",    Faro::EmbeddedProbes::PROBES["disk"])
-  verify_numeric_probe("load",    Faro::EmbeddedProbes::PROBES["load"])
+  verify_numeric_probe("cpu", Faro::EmbeddedProbes::PROBES["cpu"])
+  verify_numeric_probe("memory", Faro::EmbeddedProbes::PROBES["memory"])
+  verify_numeric_probe("disk", Faro::EmbeddedProbes::PROBES["disk"])
+  verify_numeric_probe("load", Faro::EmbeddedProbes::PROBES["load"])
   verify_numeric_probe("network", Faro::EmbeddedProbes::PROBES["network"])
-  verify_numeric_probe("swap",    Faro::EmbeddedProbes::PROBES["swap"])
+  verify_numeric_probe("swap", Faro::EmbeddedProbes::PROBES["swap"])
   verify_numeric_probe("processes", Faro::EmbeddedProbes::PROBES["processes"])
-  verify_numeric_probe("system",  Faro::EmbeddedProbes::PROBES["system"])
+  verify_numeric_probe("system", Faro::EmbeddedProbes::PROBES["system"])
   verify_numeric_probe("thermal", Faro::EmbeddedProbes::PROBES["thermal"])
 
   it "gpu probe returns valid JSON (empty {} if no GPU, or numeric values)" do

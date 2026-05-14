@@ -15,17 +15,17 @@ module Faro
   module EmbeddedProbes
     # Map of $name → shell script content.
     PROBES = {
-      "cpu"         => {{ read_file("probes/cpu.sh") }},
-      "memory"      => {{ read_file("probes/memory.sh") }},
-      "disk"        => {{ read_file("probes/disk.sh") }},
-      "load"        => {{ read_file("probes/load.sh") }},
-      "network"     => {{ read_file("probes/network.sh") }},
-      "swap"        => {{ read_file("probes/swap.sh") }},
-      "processes"   => {{ read_file("probes/processes.sh") }},
-      "system"      => {{ read_file("probes/system.sh") }},
-      "thermal"     => {{ read_file("probes/thermal.sh") }},
-      "gpu"         => {{ read_file("probes/gpu.sh") }},
-      "curl_check"  => {{ read_file("probes/curl_check.sh") }},
+      "cpu"        => {{ read_file("probes/cpu.sh") }},
+      "memory"     => {{ read_file("probes/memory.sh") }},
+      "disk"       => {{ read_file("probes/disk.sh") }},
+      "load"       => {{ read_file("probes/load.sh") }},
+      "network"    => {{ read_file("probes/network.sh") }},
+      "swap"       => {{ read_file("probes/swap.sh") }},
+      "processes"  => {{ read_file("probes/processes.sh") }},
+      "system"     => {{ read_file("probes/system.sh") }},
+      "thermal"    => {{ read_file("probes/thermal.sh") }},
+      "gpu"        => {{ read_file("probes/gpu.sh") }},
+      "curl_check" => {{ read_file("probes/curl_check.sh") }},
     }
 
     # If `run` starts with `$`, resolve it to the embedded probe script.
@@ -34,7 +34,7 @@ module Faro
       return nil if run.nil?
       if run.starts_with?('$')
         name = run.lchop('$')
-        if (script = PROBES[name]?)
+        if script = PROBES[name]?
           script
         else
           nil
