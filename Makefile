@@ -1,7 +1,13 @@
-.PHONY: build tag release
+.PHONY: build tag release docker-build
 
 build:
 	crystal build src/main.cr --release -o bin/faro
+
+docker-build:
+	docker build --target builder -t faro-builder .
+	id=$$(docker create faro-builder); \
+	docker cp $$id:/build/faro bin/faro; \
+	docker rm $$id > /dev/null
 
 # Bump shard.yml version, tag, and push.
 # Usage: make tag VERSION=x.y.z

@@ -1,4 +1,4 @@
-// Indicator card — shows one or more numeric values
+// Indicator card — shows one or more numeric values from any adapter
 
 function friendly(n, decimals) {
   decimals = decimals || 1;
@@ -25,19 +25,19 @@ function friendlyBytes(n, inKb) {
 var IndicatorCard = {
   view: function (vnode) {
     var card = vnode.attrs.card;
+    var probes = card.probes || [];
 
     var isDragging = dragState.drag && dragState.drag.id === card.id;
     var isResizing = dragState.resize && dragState.resize.id === card.id;
 
-    var useBytes = card.metrics.some(function (m) {
-      return /_(kb|bytes)$/.test(m);
+    var useBytes = probes.some(function (p) {
+      return /_(kb|bytes)$/.test(p.metric);
     });
-    // Check if the first bytes metric ends with _kb (meaning input is in KB)
-    var isKb = card.metrics.some(function (m) {
-      return /_kb$/.test(m);
+    var isKb = probes.some(function (p) {
+      return /_kb$/.test(p.metric);
     });
-    var usePct = card.metrics.some(function (m) {
-      return /_pct$/.test(m);
+    var usePct = probes.some(function (p) {
+      return /_pct$/.test(p.metric);
     });
 
     return m(
@@ -102,8 +102,8 @@ var IndicatorCard = {
         ]),
         m(
           ".card-body",
-          card.metrics.map(function (metric) {
-            var val = store.getVal(card.adapter, metric);
+          probes.map(function (probe) {
+            var val = store.getVal(probe.adapter, probe.metric);
             var displayVal;
             if (useBytes) displayVal = friendlyBytes(val, isKb);
             else if (usePct && val !== null && val !== undefined)
@@ -111,7 +111,7 @@ var IndicatorCard = {
             else displayVal = friendly(val, 1);
             return m(".metric-row", [
               m(".metric-value.neutral", displayVal),
-              m(".metric-label", metric),
+              m(".metric-label", probe.adapter + "." + probe.metric),
             ]);
           }),
         ),

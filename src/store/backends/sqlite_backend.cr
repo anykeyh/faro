@@ -22,6 +22,8 @@ module Faro::Store
                        "value REAL NOT NULL, from_ts TIMESTAMP NOT NULL, to_ts TIMESTAMP, acknowledged INTEGER DEFAULT 0)")
 
       @connection.exec("CREATE INDEX IF NOT EXISTS idx_latch_events_name ON latch_events (name, latch)")
+
+      @connection.exec("CREATE TABLE IF NOT EXISTS config (key TEXT PRIMARY KEY, value TEXT NOT NULL)")
     end
 
     def write(adapter_name : String, data : Hash(String, Float64), timestamp : Time) : Nil
@@ -137,6 +139,21 @@ module Faro::Store
 
     def close : Nil
       @connection.close
+    end
+
+    def config_set(key : String, value : String) : Nil
+      @connection.exec(
+        "INSERT OR REPLACE INTO config (key, value) VALUES (?, ?)",
+        key, value
+      )
+    end
+
+    def config_get(key : String) : String?
+      result = nil
+      @connection.query("SELECT value FROM config WHERE key = ?", key) do |rs|
+        rs.each { result = rs.read(String) }
+      end
+      result
     end
   end
 end

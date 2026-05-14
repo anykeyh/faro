@@ -585,9 +585,12 @@ var GraphCard = {
     };
 
     state._fetchData = function () {
-      API.query(card.adapter, card.range || 60)
+      var adapter =
+        card.probes && card.probes.length > 0 ? card.probes[0].adapter : null;
+      if (!adapter) return;
+      API.query(adapter, card.range || 60)
         .then(function (data) {
-          var a = store.adapters[card.adapter];
+          var a = store.adapters[adapter];
           if (a) {
             a.series = parseColumnar(data);
           }

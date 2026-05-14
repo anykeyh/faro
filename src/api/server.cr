@@ -50,7 +50,7 @@ module Faro::API
           # Try embedded frontend first (available in --release builds)
           lookup = request_path == "/" ? "/index.html" : request_path
           if (content = EmbeddedFrontend.get(lookup))
-            content_type = case request_path
+            content_type = case lookup
                            when /\.html?$/ then "text/html; charset=utf-8"
                            when /\.css$/   then "text/css; charset=utf-8"
                            when /\.js$/    then "application/javascript; charset=utf-8"
@@ -149,6 +149,26 @@ module Faro::API
         end
 
         result.to_json
+      end
+
+      # ── Layout persistence ───────────────────────────────────
+
+      get "/api/layout" do |env|
+        env.response.content_type = "application/json"
+        content = @store.config_get("layout")
+        env.response.print content || "[]"
+      end
+
+      post "/api/layout" do |env|
+        body = env.request.body.try(&.gets_to_end)
+        if body
+          @store.config_set("layout", body)
+          env.response.content_type = "application/json"
+          env.response.print "{\"ok\":true}"
+        else
+          env.response.status_code = 400
+          env.response.print "{\"error\":\"empty body\"}"
+        end
       end
 
       # ── Prometheus /metrics ─────────────────────────────────────

@@ -20,6 +20,8 @@ module Faro::Store
     abstract def open_latches : Array(NamedTuple(name: String, latch: String, metric: String, value: Float64, from_ts: Time))
     abstract def clear_data : Nil
     abstract def close : Nil
+    abstract def config_set(key : String, value : String) : Nil
+    abstract def config_get(key : String) : String?
 
     protected def read_existing(name, metric, bucket_start)
       existing = nil

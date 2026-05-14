@@ -67,6 +67,14 @@ module Faro::Store
       @db.latest_value(adapter_name, metric)
     end
 
+    def config_set(key : String, value : String) : Nil
+      @db.config_set(key, value)
+    end
+
+    def config_get(key : String) : String?
+      @db.config_get(key)
+    end
+
     def latch_open?(threshold_name : String, latch_name : String) : Bool
       @db.latch_open?(threshold_name, latch_name)
     end

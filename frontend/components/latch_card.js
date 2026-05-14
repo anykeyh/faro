@@ -13,7 +13,8 @@ var LatchCard = {
     (store.latches || []).forEach(function (t) {
       var matched = [];
       t.latches.forEach(function (l) {
-        if (alertNames.indexOf(l.name) >= 0) {
+        var key = t.adapter + "." + t.metric + "." + l.name;
+        if (alertNames.indexOf(key) >= 0) {
           matched.push(l);
         }
       });

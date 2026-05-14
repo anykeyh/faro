@@ -39,7 +39,7 @@ var store = {
   adapters: {}, // name -> { name, series }
   latches: [], // [{ adapter, metric, latches: [{name, set, release, sustain, open}] }]
   stats: [], // [{name, metric}] — flat list of available metrics
-  cards: [], // [{id, type, title, adapter, metrics, w, h}]
+  cards: [], // [{id, type, title, probes, w, h}]
   nextCardId: 1,
   editCard: null, // card being edited, or null
 };
@@ -62,7 +62,15 @@ store.getSeries = function (adapterName, metric) {
 
 store.cardLabel = function (card) {
   if (card.title) return card.title;
-  return card.adapter;
+  if (card.probes && card.probes.length > 0) {
+    var names = {};
+    card.probes.forEach(function (p) {
+      names[p.adapter] = true;
+    });
+    var keys = Object.keys(names);
+    return keys.length === 1 ? keys[0] : keys.join(" + ");
+  }
+  return "Card";
 };
 
 // ── Layout helpers ────────────────────────────────────────
@@ -121,15 +129,14 @@ store.autoPlace = function (card) {
   }
 };
 
-store.addCard = function (type, adapter, metrics, w, slotCol, slotRow) {
+store.addCard = function (type, probes, w, slotCol, slotRow) {
   var card = {
     id: store.nextCardId++,
     type: type,
-    adapter: adapter,
-    metrics: metrics,
+    probes: probes,
     w: w || 1,
-    h: 1, // default height
-    title: store.cardLabel({ adapter: adapter, metrics: metrics }),
+    h: 1,
+    title: null,
     range: 60,
   };
   if (
@@ -163,40 +170,61 @@ store.updateCard = function (card, opts) {
   store.saveLayout();
 };
 
+// Ensure backward compatibility: migrate old format to new probes-based format
+function migrateCard(c) {
+  if (c.adapter && c.metrics && !c.probes) {
+    c.probes = c.metrics.map(function (m) {
+      return { adapter: c.adapter, metric: m };
+    });
+    delete c.adapter;
+    delete c.metrics;
+  }
+  if (!c.probes) c.probes = [];
+  if (c.h === undefined || c.h < 1) c.h = 1;
+  if (c.type === "alert" && !c.alertNames) c.alertNames = [];
+  return c;
+}
+
 store.saveLayout = function () {
   var data = store.cards.map(function (c) {
-    return {
+    var out = {
       id: c.id,
       type: c.type,
-      adapter: c.adapter,
-      metrics: c.metrics,
+      probes: c.probes,
       w: c.w,
       h: c.h,
       x: c.x,
       y: c.y,
       title: c.title,
       range: c.range,
-      alertNames: c.alertNames,
     };
+    if (c.type === "alert") out.alertNames = c.alertNames;
+    return out;
   });
-  try {
-    localStorage.setItem("faro_layout", JSON.stringify(data));
-  } catch (_) {}
+  var xhr = new XMLHttpRequest();
+  xhr.open("POST", "/api/layout", true);
+  xhr.setRequestHeader("Content-Type", "application/json");
+  xhr.send(JSON.stringify(data));
 };
 
 store.loadLayout = function () {
-  try {
-    var raw = localStorage.getItem("faro_layout");
-    if (!raw) return;
-    var data = JSON.parse(raw);
-    store.nextCardId =
-      (data.reduce(function (m, c) {
-        return Math.max(m, c.id);
-      }, 0) || 0) + 1;
-    data.forEach(function (c) {
-      if (c.h === undefined || c.h < 1) c.h = 1;
-      if (c.type === "alert" && !c.alertNames) c.alertNames = [];
-      store.cards.push(c);
-    });
-  } catch (_) {}
+  var xhr = new XMLHttpRequest();
+  xhr.open("GET", "/api/layout", true);
+  xhr.onload = function () {
+    if (xhr.status === 200) {
+      try {
+        var data = JSON.parse(xhr.responseText);
+        if (data && data.length > 0) {
+          store.nextCardId =
+            (data.reduce(function (m, c) {
+              return Math.max(m, c.id);
+            }, 0) || 0) + 1;
+          data.forEach(function (c) {
+            store.cards.push(migrateCard(c));
+          });
+        }
+      } catch (_) {}
+    }
+  };
+  xhr.send();
 };
