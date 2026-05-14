@@ -1,6 +1,7 @@
 require "kemal"
 require "json"
 require "../store/bucketing"
+require "./embedded_frontend"
 
 module Faro::API
   class Server
@@ -16,54 +17,43 @@ module Faro::API
     end
 
     def start
-      # ── Static files ────────────────────────────────────────────
+      # ── Static files (embedded when --release, disk otherwise) ──
 
-      get "/" do |env|
-        send_file env, File.join(@frontend_path, "index.html")
-      end
+      static_routes = [
+        "/",
+        "/styles.css",
+        "/app.js",
+        "/mithril.js",
+        "/api.js",
+        "/store.js",
+        "/components/header.js",
+        "/components/indicator_card.js",
+        "/components/graph_card.js",
+        "/components/latch_card.js",
+        "/components/add_card.js",
+        "/components/dashboard.js",
+      ]
 
-      get "/styles.css" do |env|
-        send_file env, File.join(@frontend_path, "styles.css")
-      end
+      static_routes.each do |route|
+        get route do |env|
+          request_path = env.request.path
 
-      get "/app.js" do |env|
-        send_file env, File.join(@frontend_path, "app.js")
-      end
-
-      get "/mithril.js" do |env|
-        send_file env, File.join(@frontend_path, "mithril.js")
-      end
-
-      get "/api.js" do |env|
-        send_file env, File.join(@frontend_path, "api.js")
-      end
-
-      get "/store.js" do |env|
-        send_file env, File.join(@frontend_path, "store.js")
-      end
-
-      get "/components/header.js" do |env|
-        send_file env, File.join(@frontend_path, "components", "header.js")
-      end
-
-      get "/components/indicator_card.js" do |env|
-        send_file env, File.join(@frontend_path, "components", "indicator_card.js")
-      end
-
-      get "/components/graph_card.js" do |env|
-        send_file env, File.join(@frontend_path, "components", "graph_card.js")
-      end
-
-      get "/components/latch_card.js" do |env|
-        send_file env, File.join(@frontend_path, "components", "latch_card.js")
-      end
-
-      get "/components/add_card.js" do |env|
-        send_file env, File.join(@frontend_path, "components", "add_card.js")
-      end
-
-      get "/components/dashboard.js" do |env|
-        send_file env, File.join(@frontend_path, "components", "dashboard.js")
+          # Try embedded frontend first (available in --release builds)
+          if (content = EmbeddedFrontend.get(request_path))
+            content_type = case request_path
+                           when /\.html?$/ then "text/html; charset=utf-8"
+                           when /\.css$/   then "text/css; charset=utf-8"
+                           when /\.js$/    then "application/javascript; charset=utf-8"
+                           else                 "application/octet-stream"
+                           end
+            env.response.content_type = content_type
+            content
+          else
+            # Fallback: serve from disk (dev mode)
+            relative = request_path == "/" ? "index.html" : request_path.lchop('/')
+            send_file env, File.join(@frontend_path, relative)
+          end
+        end
       end
 
       # ── API endpoints ───────────────────────────────────────────

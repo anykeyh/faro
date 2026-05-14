@@ -60,20 +60,9 @@ db: ":memory:"
 server:
   host: "0.0.0.0"
   port: 3000
-
-adapters:
-  - name: cpu
-    run: $cpu
-    collect_interval: 5s
-
-  - name: memory
-    run: $memory
-    collect_interval: 5s
-
-  - name: disk
-    run: $disk
-    collect_interval: 10s
 ```
+
+This will start **all system probes** automatically (see below).
 
 ### Configuration reference
 
@@ -95,9 +84,55 @@ server:
   port: 3000
 ```
 
+#### `probes`
+
+Controls which system probes run automatically. Each probe runs at a **5-second interval**.
+
+**All system probes** (not set, or commented out):
+
+| Probe | Description | Metric example |
+|-------|-------------|----------------|
+| `$cpu`       | CPU usage percentage (0–1) | `cpu.usage_pct` |
+| `$memory`    | Memory usage (kB, M, pct) | `memory.usage_kb`, `memory.usage_pct` |
+| `$disk`      | Disk usage per mount (%) | `disk./.pct` |
+| `$load`      | Load averages (1m, 5m, 15m) | `load.load_1m` |
+| `$network`   | Network I/O per interface | `network.eth0.rx_bytes` |
+| `$swap`      | Swap usage (kB, pct) | `swap.usage_kb`, `swap.usage_pct` |
+| `$processes` | Process/thread counts | `processes.total` |
+| `$system`    | Uptime, connections | `system.uptime_seconds` |
+| `$thermal`   | Thermal zone temperatures | `thermal.zone_0.temp` |
+
+**Opt-in probes** (disabled by default — add them to your `probes` list to enable):
+
+| Probe | Description | Metric example |
+|-------|-------------|----------------|
+| `$gpu`       | GPU metrics (NVIDIA) | `gpu.gpu0.utilization_pct` |
+
+**Customize** which system probes run (only the listed ones will start):
+
+```yaml
+probes:
+  - $cpu
+  - $memory
+  - $disk
+  - $load
+  - $network
+  - $swap
+  - $processes
+  - $system
+  - $thermal
+  - $gpu       # < opt-in probe added alongside the others
+```
+
+**Disable all system probes**:
+
+```yaml
+probes: []
+```
+
 #### `adapters`
 
-Each adapter defines a probe to run periodically:
+Each adapter defines a probe to run periodically. An adapter with the same name as a system probe **overrides** its interval or configuration.
 
 | Field              | Description |
 |--------------------|-------------|
@@ -107,10 +142,6 @@ Each adapter defines a probe to run periodically:
 | `timeout`          | Optional timeout per probe execution |
 | `env`              | Environment variables to pass to the probe |
 | `via`              | Run inside a container (`docker`) |
-
-**Built-in probes** (prefix with `$`):
-
-`$cpu`, `$memory`, `$disk`, `$load`, `$network`, `$swap`, `$processes`, `$system`, `$thermal`, `$gpu`, `$curl_check`
 
 **Custom probes** — any executable that writes JSON to stdout:
 

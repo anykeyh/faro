@@ -5,6 +5,7 @@ struct Faro::Config
   include YAML::Serializable
 
   property db : String = ":memory:"
+  property probes : Array(String)?  # nil = all system probes with 5s interval
   property adapters : Array(AdapterConfig) = [] of AdapterConfig
   property thresholds : Array(ThresholdConfig) = [] of ThresholdConfig
   property notifications : Array(NotificationConfig) = [] of NotificationConfig
@@ -22,6 +23,12 @@ struct Faro::Config
     property collect_interval : Float64?  # seconds, supports "10s", "5m", "1h"
     @[YAML::Field(converter: Faro::TimeStringConverter)]
     property timeout : Float64?           # seconds, optional
+
+    # Convenience constructor for auto-generated system probes.
+    def initialize(@name : String, @run : String?, @collect_interval : Float64?,
+                   @args : Array(String)? = nil, @env : Hash(String, String)? = nil,
+                   @via : ViaConfig? = nil, @timeout : Float64? = nil)
+    end
 
     # Returns collect_interval with a minimum of 1.0
     def effective_interval : Float64
@@ -82,6 +89,53 @@ struct Faro::Config
     property script : String
   end
 
+  # All system probes with their recommended 5s interval.
+  SYSTEM_PROBES = {
+    "cpu"       => "$cpu",
+    "memory"    => "$memory",
+    "disk"      => "$disk",
+    "load"      => "$load",
+    "network"   => "$network",
+    "swap"      => "$swap",
+    "processes" => "$processes",
+    "system"    => "$system",
+    "thermal"   => "$thermal",
+  }
+
+  SYSTEM_PROBE_INTERVAL = 5.0
+
+  # Returns the effective list of adapters to run.
+  # Merges default system probes with user-defined overrides.
+  def effective_adapters : Array(AdapterConfig)
+    # Determine which system probes to auto-generate
+    selected_probes = if (p = probes).nil?
+                        # Not set → all system probes
+                        SYSTEM_PROBES.keys
+                      elsif p.empty?
+                        # Explicitly empty → no system probes at all
+                        [] of String
+                      else
+                        # User-specified list of $name references
+                        p.map { |ref| ref.starts_with?('$') ? ref.lchop('$') : ref }
+                      end
+
+    # Build auto-generated system adapters (5s interval)
+    probe_adapters = selected_probes.map do |probe_name|
+      run_ref = SYSTEM_PROBES[probe_name]? || "$#{probe_name}"
+      AdapterConfig.new(
+        name: probe_name,
+        run: run_ref,
+        collect_interval: SYSTEM_PROBE_INTERVAL,
+      )
+    end
+
+    # Merge with explicit adapters — explicit ones override by name
+    explicit = adapters.index_by(&.name)
+    probe_adapters.map do |pa|
+      explicit[pa.name]? || pa
+    end + adapters.reject { |a| probe_adapters.any? { |pa| pa.name == a.name } }
+  end
+
   def self.load(path : String) : self
     from_yaml(File.read(path)).tap(&.validate!)
   end
@@ -90,6 +144,15 @@ struct Faro::Config
     thresholds.each do |t|
       t.latches.each(&.validate!)
     end
+  end
+end
+
+# Helper: index an array of structs by a key proc
+module Enumerable
+  def index_by(&block : T -> K) : Hash(K, T) forall T, K
+    h = {} of K => T
+    each { |e| h[yield e] = e }
+    h
   end
 end
 

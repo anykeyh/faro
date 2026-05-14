@@ -18,7 +18,7 @@ module Faro
     # Temp files for embedded probes — cleaned up on exit.
     temp_files = [] of String
 
-    config.adapters.each do |adapter|
+    config.effective_adapters.each do |adapter|
       sleep_span = adapter.effective_interval.seconds
 
       raw_run = adapter.run
@@ -71,7 +71,7 @@ module Faro
       loop do
         sleep 10.seconds
         begin
-          all_alive = config.adapters.all? do |a|
+          all_alive = config.effective_adapters.all? do |a|
             v = store.latest_value(a.name, "_alive")
             v && v > 0.5
           end

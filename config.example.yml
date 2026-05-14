@@ -8,29 +8,25 @@ server:
   host: "0.0.0.0"
   port: 3000
 
+# System probes to auto-start at 5s interval.
+# Comment out or set to [] to disable all.
+# Custom probes below override by name.
+probes:
+  - $cpu
+  - $memory
+  - $disk
+  - $load
+  - $network
+  - $swap
+
+# Custom adapters (not in probes) — add user-defined scripts or override system ones.
 adapters:
   - name: cpu
     run: $cpu
-    collect_interval: 5s
+    collect_interval: 2s
 
-  - name: memory
-    run: $memory
-    collect_interval: 5s
-
-  - name: disk
-    run: $disk
-    collect_interval: 10s
-
-  - name: load
-    run: $load
-    collect_interval: 5s
-
-  - name: network
-    run: $network
-    collect_interval: 5s
-
-  - name: swap
-    run: $swap
+  - name: custom_app
+    run: /usr/local/bin/my_probe.sh
     collect_interval: 30s
 
 thresholds:
