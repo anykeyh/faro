@@ -3,6 +3,7 @@
 var cardComponents = {
   indicator: IndicatorCard,
   graph: GraphCard,
+  alert: LatchCard,
 };
 
 // ── Drag state ────────────────────────────────────────────
@@ -142,19 +143,25 @@ var Dashboard = {
       if (bottom > maxRow) maxRow = bottom;
     });
 
-    var dragMax = 0;
-    if (dragState.drag)
-      dragMax =
-        dragState.drag.targetY + (findCard(dragState.drag.id) || {}).h || 1;
-    if (dragState.resize) {
-      var rc = findCard(dragState.resize.id);
-      if (rc)
-        dragMax = Math.max(dragMax, rc.y + (dragState.resize.targetH || 1));
-    }
-
+    // Slot row is one below the last card, or at row 0 if no cards exist yet.
     var addRow = maxRow;
     dragState._addRow = addRow;
-    var rows = Math.max(maxRow, dragMax) + 1;
+    var rows = addRow + 1;
+
+    // During drag/resize extend the grid height for the preview
+    var dragH = 0;
+    if (dragState.drag) {
+      var dc = findCard(dragState.drag.id);
+      dragH = dragState.drag.targetY + (dc ? dc.h || 1 : 1) || 1;
+    }
+    if (dragState.resize) {
+      var rc = findCard(dragState.resize.id);
+      if (rc) {
+        var rh = rc.y + (dragState.resize.targetH || 1);
+        if (rh > dragH) dragH = rh;
+      }
+    }
+    rows = Math.max(rows, dragH + 1);
 
     // Background cells + clickable empty slot row
     var cells = [];

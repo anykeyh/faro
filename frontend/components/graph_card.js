@@ -113,6 +113,11 @@ function buildSVG(card, containerWidth, containerHeight, state) {
   var chartW = chartR - chartL;
   var chartH = chartB - chartT;
 
+  // Detect if metrics are percentages (0-1) for axis formatting
+  var isPct = card.metrics.some(function (m) {
+    return /_pct$/.test(m);
+  });
+
   if (chartW < 10 || chartH < 10) return "";
 
   // Build datasets
@@ -169,6 +174,7 @@ function buildSVG(card, containerWidth, containerHeight, state) {
   state.chartB = chartB;
   state.chartL = chartL;
   state.chartR = chartR;
+  state.isPct = isPct;
 
   // ── Build SVG string ─────────────────────────────────────
 
@@ -189,7 +195,8 @@ function buildSVG(card, containerWidth, containerHeight, state) {
     var t = i / tickCount;
     var y = chartT + t * chartH;
     var val = maxVal - t * valRange;
-    var label = val >= 1000 ? val.toFixed(0) : val.toFixed(1);
+    var label =
+      (val >= 1000 ? val.toFixed(0) : val.toFixed(1)) + (isPct ? "%" : "");
     parts.push(
       '<line x1="' +
         chartL +
@@ -446,7 +453,8 @@ function drawHover(svgEl, nearest, state) {
     label.setAttribute("font-weight", "600");
     label.setAttribute("text-anchor", tipAnchor === "start" ? "start" : "end");
     label.setAttribute("dominant-baseline", "middle");
-    label.textContent = item.name + ": " + item.value.toFixed(1);
+    var suffix = state.isPct ? "%" : "";
+    label.textContent = item.name + ": " + item.value.toFixed(1) + suffix;
     overlay.appendChild(label);
   });
 }

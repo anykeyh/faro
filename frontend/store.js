@@ -37,6 +37,7 @@ var store = {
   online: false,
   clock: new Date().toLocaleTimeString(),
   adapters: {}, // name -> { name, series }
+  latches: [], // [{ adapter, metric, latches: [{name, set, release, sustain, open}] }]
   stats: [], // [{name, metric}] — flat list of available metrics
   cards: [], // [{id, type, title, adapter, metrics, w, h}]
   nextCardId: 1,
@@ -177,6 +178,7 @@ store.saveLayout = function () {
       y: c.y,
       title: c.title,
       range: c.range,
+      alertNames: c.alertNames,
     };
   });
   try {
@@ -194,8 +196,8 @@ store.loadLayout = function () {
         return Math.max(m, c.id);
       }, 0) || 0) + 1;
     data.forEach(function (c) {
-      // default h for legacy cards
-      if (c.h === undefined) c.h = 1;
+      if (c.h === undefined || c.h < 1) c.h = 1;
+      if (c.type === "alert" && !c.alertNames) c.alertNames = [];
       store.cards.push(c);
     });
   } catch (_) {}

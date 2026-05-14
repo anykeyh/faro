@@ -25,6 +25,10 @@ adapters:
     run: $load
     collect_interval: 5s
 
+  - name: network
+    run: $network
+    collect_interval: 5s
+
   - name: swap
     run: $swap
     collect_interval: 30s
@@ -34,13 +38,13 @@ thresholds:
     metric: cpu.usage_pct
     latches:
       - name: critical
-        set: 90
-        release: 70
+        set: 0.9
+        release: 0.7
         sustain: 30s
 
       - name: sustained
-        set: 80
-        release: 60
+        set: 0.8
+        release: 0.6
         sustain: 5m
 
   - name: alive-check

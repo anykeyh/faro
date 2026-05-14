@@ -1,43 +1,25 @@
-// Indicator card — shows one or more numeric values
+// Alert card — shows thresholds grouped by adapter, with grey/red indicators
 
-function friendly(n, decimals) {
-  decimals = decimals || 1;
-  if (n === null || n === undefined) return "\u2014";
-  return Number(n).toFixed(decimals);
-}
-
-// Format byte values into human-readable sizes
-// If inKb is true, input is in kilobytes; otherwise raw bytes
-function friendlyBytes(n, inKb) {
-  if (n === null || n === undefined) return "\u2014";
-  var bytes = inKb ? n * 1024 : n;
-  if (bytes < 1024) return bytes.toFixed(0) + " B";
-  var kb = bytes / 1024;
-  if (kb < 1024) return kb.toFixed(1) + " KB";
-  var mb = kb / 1024;
-  if (mb < 1024) return mb.toFixed(1) + " MB";
-  var gb = mb / 1024;
-  if (gb < 1024) return gb.toFixed(2) + " GB";
-  var tb = gb / 1024;
-  return tb.toFixed(2) + " TB";
-}
-
-var IndicatorCard = {
+var LatchCard = {
   view: function (vnode) {
     var card = vnode.attrs.card;
 
     var isDragging = dragState.drag && dragState.drag.id === card.id;
     var isResizing = dragState.resize && dragState.resize.id === card.id;
 
-    var useBytes = card.metrics.some(function (m) {
-      return /_(kb|bytes)$/.test(m);
-    });
-    // Check if the first bytes metric ends with _kb (meaning input is in KB)
-    var isKb = card.metrics.some(function (m) {
-      return /_kb$/.test(m);
-    });
-    var usePct = card.metrics.some(function (m) {
-      return /_pct$/.test(m);
+    // Group alerts by threshold (adapter + metric), keeping only selected alert names
+    var alertNames = card.alertNames || [];
+    var groups = [];
+    (store.latches || []).forEach(function (t) {
+      var matched = [];
+      t.latches.forEach(function (l) {
+        if (alertNames.indexOf(l.name) >= 0) {
+          matched.push(l);
+        }
+      });
+      if (matched.length > 0) {
+        groups.push({ adapter: t.adapter, metric: t.metric, alerts: matched });
+      }
     });
 
     return m(
@@ -90,19 +72,32 @@ var IndicatorCard = {
           ]),
         ]),
         m(
-          ".card-body",
-          card.metrics.map(function (metric) {
-            var val = store.getVal(card.adapter, metric);
-            var displayVal;
-            if (useBytes) displayVal = friendlyBytes(val, isKb);
-            else if (usePct && val !== null && val !== undefined)
-              displayVal = (val * 100).toFixed(1) + "%";
-            else displayVal = friendly(val, 1);
-            return m(".metric-row", [
-              m(".metric-value.neutral", displayVal),
-              m(".metric-label", metric),
-            ]);
-          }),
+          ".card-body.alert-body",
+          groups.length === 0
+            ? m(".alert-empty", "No alerts selected")
+            : groups.map(function (g) {
+                return m(".alert-group", [
+                  m(".alert-group-title", g.adapter + " \u00b7 " + g.metric),
+                  g.alerts.map(function (l) {
+                    var active = l.open;
+                    return m(
+                      ".alert-row" + (active ? ".alert-row-active" : ""),
+                      [
+                        m(".alert-indicator", {
+                          class: active ? "alert-open" : "alert-idle",
+                        }),
+                        m(
+                          ".alert-name" + (active ? ".alert-name-active" : ""),
+                          l.name,
+                        ),
+                        active
+                          ? m(".alert-badge.alert-badge-open", "ACTIVE")
+                          : null,
+                      ],
+                    );
+                  }),
+                ]);
+              }),
         ),
         m(".resize-handle", {
           onmousedown: function (e) {

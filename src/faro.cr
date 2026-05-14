@@ -72,6 +72,6 @@ module Faro
     end
 
     server_config = config.server
-    API::Server.new(store, host: server_config.host, port: server_config.port).start
+    API::Server.new(store, config.thresholds, host: server_config.host, port: server_config.port).start
   end
 end

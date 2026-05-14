@@ -3,15 +3,15 @@
 var AddCard = {
   oninit: function (vnode) {
     vnode.state.open = false;
-    vnode.state.step = "type"; // 'type' | 'adapter' | 'metrics'
+    vnode.state.step = "type"; // 'type' | 'adapter' | 'metrics' | 'alert-select'
     vnode.state.type = "indicator";
     vnode.state.adapter = "";
     vnode.state.metrics = [];
+    vnode.state.alertNames = []; // selected alert names
   },
   view: function (vnode) {
     var s = vnode.state;
 
-    // If the dashboard tells us to open at a slot, open the modal
     if (
       !s.open &&
       dragState._addTargetCol !== undefined &&
@@ -19,13 +19,9 @@ var AddCard = {
     ) {
       s.open = true;
       s.step = "type";
-      // Don't reset _addTargetCol yet — we keep it so store.addCard can use it
     }
 
-    if (!s.open) {
-      // Render nothing — the slots are handled by Dashboard
-      return null;
-    }
+    if (!s.open) return null;
 
     var modalContent;
     var adapters = Object.keys(store.adapters).sort();
@@ -52,6 +48,104 @@ var AddCard = {
             },
           },
           "Graph",
+        ),
+        m(
+          "button.btn",
+          {
+            onclick: function () {
+              s.type = "alert";
+              s.step = "alert-select";
+            },
+          },
+          "Alerts",
+        ),
+      ];
+    } else if (s.step === "alert-select") {
+      var groups = [];
+      (store.latches || []).forEach(function (t) {
+        groups.push(
+          m(
+            "p",
+            { style: "font-size:12px;color:var(--text-dim);margin-top:10px;" },
+            t.adapter + " / " + t.metric,
+          ),
+          t.latches.map(function (l) {
+            var selected = s.alertNames.indexOf(l.name) >= 0;
+            return m("label", { style: "display:block;margin:4px 0;" }, [
+              m("input[type=checkbox]", {
+                checked: selected,
+                onchange: function () {
+                  if (selected) {
+                    s.alertNames = s.alertNames.filter(function (x) {
+                      return x !== l.name;
+                    });
+                  } else {
+                    s.alertNames.push(l.name);
+                  }
+                },
+              }),
+              " " +
+                l.name +
+                " (set: " +
+                l.set +
+                ", release: " +
+                l.release +
+                ")",
+            ]);
+          }),
+        );
+      });
+
+      modalContent = [
+        m("h3", "Select alerts"),
+        groups.length === 0 ? m("p", "No alerts configured.") : groups,
+        m(
+          "button.btn",
+          {
+            onclick: function () {
+              if (s.alertNames.length === 0) return;
+              var card = {
+                id: store.nextCardId++,
+                type: "alert",
+                adapter: "",
+                metrics: [],
+                alertNames: s.alertNames.slice(),
+                w: 1,
+                h: 1,
+                title: "Alerts",
+                range: 60,
+              };
+              if (
+                dragState._addTargetCol !== undefined &&
+                dragState._addTargetCol !== null
+              ) {
+                if (
+                  canPlace(
+                    card.id,
+                    dragState._addTargetCol,
+                    dragState._addTargetRow,
+                    card.w,
+                    card.h,
+                  )
+                ) {
+                  card.x = dragState._addTargetCol;
+                  card.y = dragState._addTargetRow;
+                } else {
+                  store.autoPlace(card);
+                }
+              } else {
+                store.autoPlace(card);
+              }
+              store.cards.push(card);
+              store.saveLayout();
+              s.open = false;
+              s.step = "type";
+              s.alertNames = [];
+              dragState._addTargetCol = null;
+              dragState._addTargetRow = null;
+            },
+          },
+          "Add card",
         ),
       ];
     } else if (s.step === "adapter") {
@@ -117,7 +211,6 @@ var AddCard = {
                 dragState._addTargetCol,
                 dragState._addTargetRow,
               );
-              // Reset modal state and slot target
               s.open = false;
               s.step = "type";
               s.metrics = [];
@@ -139,6 +232,7 @@ var AddCard = {
             s.open = false;
             s.step = "type";
             s.metrics = [];
+            s.alertNames = [];
             s.adapter = "";
             dragState._addTargetCol = null;
             dragState._addTargetRow = null;

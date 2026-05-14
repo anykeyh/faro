@@ -5,9 +5,10 @@ require "../store/bucketing"
 module Faro::API
   class Server
     @store : Faro::Store::Bucketing
+    @thresholds : Array(Faro::Config::ThresholdConfig)
     @frontend_path : String
 
-    def initialize(@store : Faro::Store::Bucketing, host : String = "0.0.0.0", port : Int32 = 3000)
+    def initialize(@store : Faro::Store::Bucketing, @thresholds : Array(Faro::Config::ThresholdConfig), host : String = "0.0.0.0", port : Int32 = 3000)
       @frontend_path = File.join(__DIR__, "../../frontend")
       Kemal.config.port = port
       Kemal.config.host_binding = host
@@ -15,6 +16,8 @@ module Faro::API
     end
 
     def start
+      # ── Static files ────────────────────────────────────────────
+
       get "/" do |env|
         send_file env, File.join(@frontend_path, "index.html")
       end
@@ -51,6 +54,10 @@ module Faro::API
         send_file env, File.join(@frontend_path, "components", "graph_card.js")
       end
 
+      get "/components/latch_card.js" do |env|
+        send_file env, File.join(@frontend_path, "components", "latch_card.js")
+      end
+
       get "/components/add_card.js" do |env|
         send_file env, File.join(@frontend_path, "components", "add_card.js")
       end
@@ -58,6 +65,8 @@ module Faro::API
       get "/components/dashboard.js" do |env|
         send_file env, File.join(@frontend_path, "components", "dashboard.js")
       end
+
+      # ── API endpoints ───────────────────────────────────────────
 
       get "/health" do |env|
         env.response.content_type = "application/json"
@@ -104,11 +113,37 @@ module Faro::API
         {"name" => name, "since" => since.to_rfc3339, "until" => finish.to_rfc3339, "series" => grouped}.to_json
       end
 
-      # Prometheus /metrics endpoint — exposes all latest values with labels.
+      # ── Latch endpoint ──────────────────────────────────────────
+
+      get "/api/latches" do |env|
+        env.response.content_type = "application/json"
+
+        result = @thresholds.map do |t|
+          latch_list = t.latches.map do |l|
+            {
+              name:     l.name,
+              set:      l.set,
+              release:  l.release,
+              sustain:  l.sustain,
+              open:     @store.latch_open?(t.name, l.name),
+            }
+          end
+
+          {
+            adapter:   t.name,
+            metric:    t.metric,
+            latches:   latch_list,
+          }
+        end
+
+        result.to_json
+      end
+
+      # ── Prometheus /metrics ─────────────────────────────────────
+
       get "/metrics" do |env|
         env.response.content_type = "text/plain; version=0.0.4"
 
-        # Build a set of (name, metric) → latest value
         metrics = {} of String => Array(NamedTuple(metric: String, value: Float64))
 
         @store.list_names.each do |entry|

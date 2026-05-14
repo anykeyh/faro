@@ -32,6 +32,9 @@ API.query = function (name, minutes) {
 
 API.latest = function (name) {
   // Query a generous window so all card ranges are covered.
-  // The biggest range is 7 days = 10080 minutes.
   return API.query(name, 7 * 24 * 60);
+};
+
+API.latches = function () {
+  return API.fetchJSON("/api/latches");
 };

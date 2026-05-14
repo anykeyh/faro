@@ -9,7 +9,6 @@ function updateClock() {
 function refreshAdapters() {
   var promises = [];
   for (var name in store.adapters) {
-    // Capture name in a closure to avoid the loop variable changing
     (function (adapterName) {
       promises.push(
         API.latest(adapterName).then(function (data) {
@@ -30,7 +29,6 @@ function discoverAdapters() {
     var promises = [];
     for (var name in names) {
       if (store.adapters[name]) continue;
-      // Capture name in a closure to avoid the loop variable changing
       (function (adapterName) {
         promises.push(
           API.latest(adapterName).then(function (data) {
@@ -46,6 +44,12 @@ function discoverAdapters() {
   });
 }
 
+function refreshLatches() {
+  return API.latches().then(function (data) {
+    store.latches = data;
+  });
+}
+
 function poll() {
   API.health()
     .then(function () {
@@ -56,6 +60,7 @@ function poll() {
     })
     .then(discoverAdapters)
     .then(refreshAdapters)
+    .then(refreshLatches)
     .then(function () {
       m.redraw();
     })
