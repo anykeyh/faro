@@ -2,18 +2,27 @@ require "../spec_helper"
 require "../../src/store/bucketing"
 require "../../src/config"
 
-def fresh_store_for_latch : Faro::Store::Bucketing
-  uri = "sqlite3://%3Amemory%3A?max_pool_size=1"
+def fresh_store_for_latch(backend : Symbol = :sqlite) : Faro::Store::Bucketing
+  uri = case backend
+        when :sqlite
+          "sqlite3://%3Amemory%3A?max_pool_size=1"
+        when :duckdb
+          "duckdb://[:memory:]?max_pool_size=1"
+        else
+          raise "Unknown backend: #{backend}"
+        end
   db = Faro::Store::Db.new(uri)
   db.setup_schema
   Faro::Store::Bucketing.new(db)
 end
 
-describe Faro::Store::Bucketing do
+{% for backend in [:sqlite, :duckdb] %}
+
+describe "Faro::Store::Bucketing (latch eval, {{backend.id}})" do
   # ── Latch evaluation with sustain and direction ────────────────────────
 
   it "opens an above-latch immediately when set > release and value >= set" do
-    s = fresh_store_for_latch
+    s = fresh_store_for_latch({{backend}})
     t = Time.utc(2026, 6, 1, 12, 0, 0)
 
     s.evaluate_latch("cpu-high", "usage_pct", "critical", set: 90.0, release: 70.0, value: 95.0, sustain: nil, now: t)
@@ -23,7 +32,7 @@ describe Faro::Store::Bucketing do
   end
 
   it "opens a below-latch immediately when set < release and value <= set" do
-    s = fresh_store_for_latch
+    s = fresh_store_for_latch({{backend}})
     t = Time.utc(2026, 6, 1, 12, 0, 0)
 
     s.evaluate_latch("alive-check", "_alive", "dead", set: 0.5, release: 0.9, value: 0.0, sustain: nil, now: t)
@@ -33,7 +42,7 @@ describe Faro::Store::Bucketing do
   end
 
   it "closes an open above-latch when value drops below release" do
-    s = fresh_store_for_latch
+    s = fresh_store_for_latch({{backend}})
     t = Time.utc(2026, 6, 1, 12, 0, 0)
 
     s.evaluate_latch("cpu-high", "usage_pct", "critical", set: 90.0, release: 70.0, value: 95.0, sustain: nil, now: t)
@@ -45,7 +54,7 @@ describe Faro::Store::Bucketing do
   end
 
   it "closes an open below-latch when value rises above release" do
-    s = fresh_store_for_latch
+    s = fresh_store_for_latch({{backend}})
     t = Time.utc(2026, 6, 1, 12, 0, 0)
 
     s.evaluate_latch("alive-check", "_alive", "dead", set: 0.5, release: 0.9, value: 0.0, sustain: nil, now: t)
@@ -57,7 +66,7 @@ describe Faro::Store::Bucketing do
   end
 
   it "does not open above-latch with sustain until duration elapses" do
-    s = fresh_store_for_latch
+    s = fresh_store_for_latch({{backend}})
     t = Time.utc(2026, 6, 1, 12, 0, 0)
 
     # First write at set crossing — timer starts
@@ -76,7 +85,7 @@ describe Faro::Store::Bucketing do
   end
 
   it "cancels pending timer when value drops below set before sustain elapses" do
-    s = fresh_store_for_latch
+    s = fresh_store_for_latch({{backend}})
     t = Time.utc(2026, 6, 1, 12, 0, 0)
 
     s.evaluate_latch("cpu-high", "usage_pct", "critical", set: 90.0, release: 70.0, value: 95.0, sustain: 30.0, now: t)
@@ -97,7 +106,7 @@ describe Faro::Store::Bucketing do
   end
 
   it "works with below-latch and sustain" do
-    s = fresh_store_for_latch
+    s = fresh_store_for_latch({{backend}})
     t = Time.utc(2026, 6, 1, 12, 0, 0)
 
     # Value drops below 0.5 — start timer
@@ -115,7 +124,7 @@ describe Faro::Store::Bucketing do
   end
 
   it "does nothing for value between set and release (no crossing)" do
-    s = fresh_store_for_latch
+    s = fresh_store_for_latch({{backend}})
     t = Time.utc(2026, 6, 1, 12, 0, 0)
 
     s.evaluate_latch("cpu-high", "usage_pct", "critical", set: 90.0, release: 70.0, value: 80.0, sustain: nil, now: t)
@@ -124,3 +133,5 @@ describe Faro::Store::Bucketing do
     s.close
   end
 end
+
+{% end %}

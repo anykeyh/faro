@@ -1,18 +1,27 @@
 require "../spec_helper"
 require "../../src/store/bucketing"
 
-def fresh_bucketing : Faro::Store::Bucketing
-  uri = "sqlite3://%3Amemory%3A?max_pool_size=1"
+def fresh_bucketing(backend : Symbol = :sqlite) : Faro::Store::Bucketing
+  uri = case backend
+        when :sqlite
+          "sqlite3://%3Amemory%3A?max_pool_size=1"
+        when :duckdb
+          "duckdb://[:memory:]?max_pool_size=1"
+        else
+          raise "Unknown backend: #{backend}"
+        end
   db = Faro::Store::Db.new(uri)
   db.setup_schema
   Faro::Store::Bucketing.new(db)
 end
 
-describe Faro::Store::Bucketing do
+{% for backend in [:sqlite, :duckdb] %}
+
+describe "Faro::Store::Bucketing ({{backend.id}})" do
   # ── Raw writes ──────────────────────────────────────────────────────────────
 
   it "stores raw data with exact timestamp and k=1" do
-    s = fresh_bucketing
+    s = fresh_bucketing({{backend}})
     t = Time.utc(2026, 6, 1, 12, 0, 7)
     s.write("cpu", {"usage" => 45.0}, t)
 
@@ -27,7 +36,7 @@ describe Faro::Store::Bucketing do
   end
 
   it "stores multiple metrics in one write" do
-    s = fresh_bucketing
+    s = fresh_bucketing({{backend}})
     t = Time.utc(2026, 6, 1, 12, 0, 0)
     s.write("cpu", {"user" => 10.0, "system" => 5.0}, t)
 
@@ -40,7 +49,7 @@ describe Faro::Store::Bucketing do
   # ── 1-minute compaction (old enough to pass age threshold) ────────────
 
   it "compacts raw rows into a 1-minute bucket when data is older than 5 min" do
-    s = fresh_bucketing
+    s = fresh_bucketing({{backend}})
     # Write two raw samples in minute 12:00
     t1 = Time.utc(2026, 6, 1, 12, 0, 10)
     t2 = Time.utc(2026, 6, 1, 12, 0, 50)
@@ -70,7 +79,7 @@ describe Faro::Store::Bucketing do
   end
 
   it "1-minute bucket is aligned to the UTC minute boundary" do
-    s = fresh_bucketing
+    s = fresh_bucketing({{backend}})
     t1 = Time.utc(2026, 6, 1, 12, 0, 30)
     # Jump 6 min — crosses boundary AND past age threshold
     t2 = Time.utc(2026, 6, 1, 12, 6, 10)
@@ -87,7 +96,7 @@ describe Faro::Store::Bucketing do
   # ── Age guard: data < 5 min should NOT be compacted ───────────────────
 
   it "in real-time operation, 1m compacted rows appear after ~5 minutes" do
-    s = fresh_bucketing
+    s = fresh_bucketing({{backend}})
     base = Time.utc(2026, 6, 1, 12, 0, 0)
 
     # Simulate writes every 5 seconds for 10 minutes (120 writes)
@@ -110,7 +119,7 @@ describe Faro::Store::Bucketing do
   end
 
   it "does NOT compact data newer than the tier's age threshold" do
-    s = fresh_bucketing
+    s = fresh_bucketing({{backend}})
     t1 = Time.utc(2026, 6, 1, 12, 0, 0)
     s.write("cpu", {"x" => 10.0}, t1)
 
@@ -126,7 +135,7 @@ describe Faro::Store::Bucketing do
   end
 
   it "does NOT compact raw data within the last 5 minutes even after many writes" do
-    s = fresh_bucketing
+    s = fresh_bucketing({{backend}})
     base = Time.utc(2026, 6, 1, 12, 0, 0)
 
     # Write every 5 seconds for 3 minutes — all within last 5 min, nothing compacted
@@ -146,7 +155,7 @@ describe Faro::Store::Bucketing do
   # ── 5-minute compaction (data old enough) ─────────────────────────────
 
   it "compacts 1m buckets into a 5-minute bucket when data is older than 1h" do
-    s = fresh_bucketing
+    s = fresh_bucketing({{backend}})
     # Fill two 1-minute buckets at 11:00 (1h+ ago from target)
     s.write("cpu", {"x" => 1.0}, Time.utc(2026, 6, 1, 11, 55, 10))
     s.write("cpu", {"x" => 2.0}, Time.utc(2026, 6, 1, 11, 56, 5))  # crosses 1m → compacts 11:55
@@ -169,7 +178,7 @@ describe Faro::Store::Bucketing do
   end
 
   it "5-minute bucket is aligned to :00, :05, :10..." do
-    s = fresh_bucketing
+    s = fresh_bucketing({{backend}})
     s.write("cpu", {"x" => 1.0}, Time.utc(2026, 6, 1, 11, 55, 10))
     s.write("cpu", {"x" => 2.0}, Time.utc(2026, 6, 1, 11, 56, 5))
     s.write("cpu", {"x" => 3.0}, Time.utc(2026, 6, 1, 13, 0, 5))
@@ -184,7 +193,7 @@ describe Faro::Store::Bucketing do
   # ── Cascade: raw → 1m → 5m ─────────────────────────────────────────────────
 
   it "cascades compaction: raw → 1m, then 1m → 5m when data is old enough" do
-    s = fresh_bucketing
+    s = fresh_bucketing({{backend}})
     # Fill minute 11:55 (65+ min ago from 13:00)
     s.write("cpu", {"x" => 10.0}, Time.utc(2026, 6, 1, 11, 55, 10))
     s.write("cpu", {"x" => 20.0}, Time.utc(2026, 6, 1, 11, 56, 5))  # crosses 1m → compacts 11:55
@@ -207,7 +216,7 @@ describe Faro::Store::Bucketing do
   # ── Welford correctness across compaction ──────────────────────────────────
 
   it "preserves Welford statistics through 1m compaction" do
-    s = fresh_bucketing
+    s = fresh_bucketing({{backend}})
     values = [3.0, 5.0, 7.0, 9.0]
     t = Time.utc(2026, 6, 1, 12, 0, 0)
     values.each_with_index { |v, i| s.write("w", {"v" => v}, t + i.seconds) }
@@ -227,7 +236,7 @@ describe Faro::Store::Bucketing do
   # ── Purge ──────────────────────────────────────────────────────────────────
 
   it "purges data older than 365 days" do
-    s = fresh_bucketing
+    s = fresh_bucketing({{backend}})
     old = Time.utc(2024, 1, 1, 0, 0, 0)
     recent = Time.utc(2026, 6, 1, 12, 0, 0)
 
@@ -244,7 +253,7 @@ describe Faro::Store::Bucketing do
   # ── Query across mixed tiers ───────────────────────────────────────────────
 
   it "returns rows from multiple tiers in a single query" do
-    s = fresh_bucketing
+    s = fresh_bucketing({{backend}})
     s.write("cpu", {"x" => 1.0}, Time.utc(2026, 6, 1, 12, 5, 30))
 
     s.write("cpu", {"x" => 2.0}, Time.utc(2026, 6, 1, 12, 0, 10))
@@ -260,7 +269,7 @@ describe Faro::Store::Bucketing do
   # ── Empty data ─────────────────────────────────────────────────────────────
 
   it "handles empty data hash gracefully" do
-    s = fresh_bucketing
+    s = fresh_bucketing({{backend}})
     s.write("cpu", {} of String => Float64, Time.utc)
     s.list_names.should be_empty
     s.close
@@ -269,7 +278,7 @@ describe Faro::Store::Bucketing do
   # ── Series compaction test ───────────────────────────────────────────
 
   it "series: recent data stays raw, old data gets compacted progressively" do
-    s = fresh_bucketing
+    s = fresh_bucketing({{backend}})
     base = Time.utc(2026, 6, 1, 12, 0, 0)
 
     # Write data every 5 seconds:
@@ -316,7 +325,7 @@ describe Faro::Store::Bucketing do
   end
 
   it "series: recent writes within 5 minutes all remain raw" do
-    s = fresh_bucketing
+    s = fresh_bucketing({{backend}})
     now = Time.utc(2026, 6, 1, 12, 0, 0)
 
     # Write every 5 seconds for 4 minutes
@@ -335,7 +344,7 @@ describe Faro::Store::Bucketing do
   end
 
   it "series: compacted 1m buckets have midpoint resolved_at" do
-    s = fresh_bucketing
+    s = fresh_bucketing({{backend}})
 
     # Data in 12:00 bucket (two samples)
     s.write("cpu", {"x" => 10.0}, Time.utc(2026, 6, 1, 12, 0, 10))
@@ -356,7 +365,7 @@ describe Faro::Store::Bucketing do
   # ── Delegated methods ──────────────────────────────────────────────────────
 
   it "delegates list_names to the underlying Db" do
-    s = fresh_bucketing
+    s = fresh_bucketing({{backend}})
     t = Time.utc(2026, 6, 1, 12, 0, 0)
     s.write("cpu", {"pct" => 30.0}, t)
     s.write("mem", {"pct" => 60.0}, t)
@@ -368,3 +377,5 @@ describe Faro::Store::Bucketing do
     s.close
   end
 end
+
+{% end %}

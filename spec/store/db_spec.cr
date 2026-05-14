@@ -1,10 +1,12 @@
 require "../spec_helper"
 
-describe Faro::Store::Db do
+{% for backend in [:sqlite, :duckdb] %}
+
+describe "Faro::Store::Db ({{backend.id}})" do
   # ── Schema ──────────────────────────────────────────────────────────────────
 
   it "starts empty after setup_schema" do
-    s = fresh_store
+    s = fresh_store({{backend}})
     s.list_names.should be_empty
     s.close
   end
@@ -12,7 +14,7 @@ describe Faro::Store::Db do
   # ── Single write ────────────────────────────────────────────────────────────
 
   it "stores a single sample into the current bucket" do
-    s = fresh_store
+    s = fresh_store({{backend}})
     t = Time.utc(2026, 6, 1, 12, 0, 0)
     s.write("cpu", {"usage_pct" => 45.0}, t)
 
@@ -33,7 +35,7 @@ describe Faro::Store::Db do
   # ── resolved_at semantics ───────────────────────────────────────────────────
 
   it "sets resolved_at to the exact timestamp on first sample" do
-    s = fresh_store
+    s = fresh_store({{backend}})
     t = Time.utc(2026, 6, 1, 12, 0, 7)
     s.write("cpu", {"x" => 1.0}, t)
 
@@ -43,7 +45,7 @@ describe Faro::Store::Db do
   end
 
   it "resolves to bucket midpoint after merge (k > 1)" do
-    s = fresh_store
+    s = fresh_store({{backend}})
     t = Time.utc(2026, 6, 1, 12, 0, 7)
     expected_mid = Time.utc(2026, 6, 1, 12, 0, 30)
 
@@ -59,7 +61,7 @@ describe Faro::Store::Db do
   # ── Incremental merge ───────────────────────────────────────────────────────
 
   it "merges multiple samples in the same bucket" do
-    s = fresh_store
+    s = fresh_store({{backend}})
     bucket = Time.utc(2026, 6, 1, 12, 0, 0)
 
     s.write("cpu", {"x" => 2.0}, bucket)
@@ -79,7 +81,7 @@ describe Faro::Store::Db do
   # ── Bucket isolation ────────────────────────────────────────────────────────
 
   it "creates separate rows for different 1‑minute buckets" do
-    s = fresh_store
+    s = fresh_store({{backend}})
     t1 = Time.utc(2026, 6, 1, 12, 0, 30)
     t2 = Time.utc(2026, 6, 1, 12, 1, 15)
 
@@ -98,7 +100,7 @@ describe Faro::Store::Db do
   # ── Multiple metrics per write ──────────────────────────────────────────────
 
   it "stores several metrics from a single collector call" do
-    s = fresh_store
+    s = fresh_store({{backend}})
     t = Time.utc(2026, 6, 1, 12, 0, 0)
     s.write("cpu", {"user" => 100.0, "system" => 50.0, "idle" => 800.0}, t)
 
@@ -111,7 +113,7 @@ describe Faro::Store::Db do
   # ── list_names ──────────────────────────────────────────────────────────────
 
   it "returns distinct (name, metric) pairs" do
-    s = fresh_store
+    s = fresh_store({{backend}})
     t = Time.utc(2026, 6, 1, 12, 0, 0)
     s.write("cpu",    {"pct" => 30.0}, t)
     s.write("memory", {"pct" => 60.0}, t)
@@ -126,7 +128,7 @@ describe Faro::Store::Db do
   # ── Empty data ──────────────────────────────────────────────────────────────
 
   it "gracefully handles an empty data hash" do
-    s = fresh_store
+    s = fresh_store({{backend}})
     s.write("cpu", {} of String => Float64, Time.utc)
     s.list_names.should be_empty
     s.close
@@ -135,7 +137,7 @@ describe Faro::Store::Db do
   # ── Welford correctness ─────────────────────────────────────────────────────
 
   it "computes the correct population variance via Welford" do
-    s = fresh_store
+    s = fresh_store({{backend}})
     t = Time.utc(2026, 6, 1, 12, 0, 0)
 
     [3.0, 5.0, 7.0, 9.0].each { |v| s.write("welford", {"v" => v}, t) }
@@ -152,7 +154,7 @@ describe Faro::Store::Db do
   # ── Time-window query ───────────────────────────────────────────────────────
 
   it "only returns rows inside the requested time window" do
-    s = fresh_store
+    s = fresh_store({{backend}})
     b1 = Time.utc(2026, 6, 1, 12, 0, 0)
     b2 = Time.utc(2026, 6, 1, 12, 1, 0)
     b3 = Time.utc(2026, 6, 1, 12, 2, 0)
@@ -170,14 +172,14 @@ describe Faro::Store::Db do
   # ── Latches ─────────────────────────────────────────────────────────────────
 
   it "starts with no latches open" do
-    s = fresh_store
+    s = fresh_store({{backend}})
     s.latch_open?("cpu-high", "critical").should be_false
     s.open_latches.should be_empty
     s.close
   end
 
   it "opens a latch and reports it as open" do
-    s = fresh_store
+    s = fresh_store({{backend}})
     t = Time.utc(2026, 6, 1, 12, 0, 0)
     s.open_latch("cpu-high", "critical", "cpu.usage_pct", 95.0, t)
 
@@ -192,7 +194,7 @@ describe Faro::Store::Db do
   end
 
   it "closes an open latch" do
-    s = fresh_store
+    s = fresh_store({{backend}})
     t = Time.utc(2026, 6, 1, 12, 0, 0)
     s.open_latch("cpu-high", "critical", "cpu.usage_pct", 95.0, t)
     s.latch_open?("cpu-high", "critical").should be_true
@@ -203,7 +205,7 @@ describe Faro::Store::Db do
   end
 
   it "re-opens a latch that was previously closed" do
-    s = fresh_store
+    s = fresh_store({{backend}})
     t = Time.utc(2026, 6, 1, 12, 0, 0)
 
     s.open_latch("cpu-high", "critical", "cpu.usage_pct", 95.0, t)
@@ -217,13 +219,13 @@ describe Faro::Store::Db do
   end
 
   it "returns nil for latest_value when no data exists" do
-    s = fresh_store
+    s = fresh_store({{backend}})
     s.latest_value("cpu", "usage_pct").should be_nil
     s.close
   end
 
   it "returns the latest sensor value" do
-    s = fresh_store
+    s = fresh_store({{backend}})
     t = Time.utc(2026, 6, 1, 12, 0, 0)
     s.write("cpu", {"usage_pct" => 45.0}, t)
     s.write("cpu", {"usage_pct" => 60.0}, t + 10.seconds)
@@ -232,3 +234,5 @@ describe Faro::Store::Db do
     s.close
   end
 end
+
+{% end %}
