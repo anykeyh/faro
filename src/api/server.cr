@@ -57,7 +57,8 @@ module Faro::API
                            else                 "application/octet-stream"
                            end
             env.response.content_type = content_type
-            content
+            env.response.print content
+            nil
           else
             # Fallback: serve from disk (dev mode)
             relative = request_path == "/" ? "index.html" : request_path.lchop('/')

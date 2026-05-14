@@ -31,7 +31,7 @@ module Faro
     Faro::Log.info "Log error: #{config.log.error}"
 
     config.effective_adapters.each do |adapter|
-      spawn_adapter(adapter, runner, store, temp_files)
+      spawn_adapter(adapter, runner, store, temp_files, config.thresholds)
     end
 
     # Meta healthy probe — periodically checks that all adapters are alive
@@ -71,7 +71,7 @@ module Faro
     API::Server.new(store, config.thresholds, server_config).start
   end
 
-  private def self.spawn_adapter(adapter, runner, store, temp_files)
+  private def self.spawn_adapter(adapter, runner, store, temp_files, thresholds)
     Faro::Log.info "Adapter: #{adapter.name} (run: #{adapter.run}, interval: #{adapter.effective_interval}s)"
 
     sleep_span = adapter.effective_interval.seconds
@@ -110,7 +110,23 @@ module Faro
             Faro::Log.trace "[#{adapter.name}] ok (#{data.size} metrics)"
           else
             Faro::Log.warn "[#{adapter.name}] exit #{result.exit_code}: #{result.stderr.strip}"
-            store.write(adapter.name, {"_alive" => 0.0}, Time.utc)
+            data = {"_alive" => 0.0}
+            store.write(adapter.name, data, Time.utc)
+          end
+
+          # Evaluate thresholds for this adapter
+          now = Time.utc
+          thresholds.each do |t|
+            # t.metric is "adapter_name.metric_name"
+            parts = t.metric.split(".", 2)
+            next unless parts.size == 2 && parts[0] == adapter.name
+            metric_name = parts[1]
+            value = data[metric_name]?
+            next if value.nil?
+            t.latches.each do |l|
+              store.evaluate_latch(t.name, metric_name, l.name,
+                set: l.set, release: l.release, value: value, sustain: l.sustain, now: now)
+            end
           end
         rescue ex
           Faro::Log.warn "ERROR in adapter '#{adapter.name}': #{ex.message}"

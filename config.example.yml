@@ -6,7 +6,7 @@ db: "sqlite3://:memory:"
 
 log:
   # Level: trace, debug, info, warn, error, fatal
-  level: warn
+  level: trace
   # Output for info-level and below (trace, debug, info)
   output: /dev/stdout
   # Output for warn-level and above (warn, error, fatal)
@@ -41,6 +41,10 @@ adapters:
     run: /usr/local/bin/my_probe.sh
     collect_interval: 30s
 
+  - name: metric_test
+    run: ./custom_probes/metric_test.sh
+    collect_interval: 5s
+
 thresholds:
   - name: cpu-high
     metric: cpu.usage_pct
@@ -62,3 +66,10 @@ thresholds:
         set: 0.5
         release: 0.9
         sustain: 10
+
+  - name: testcheck
+    metric: metric_test.metric_test
+    latches:
+      - name: failing
+        set: 0.0
+        release: 0.1

@@ -10,7 +10,14 @@ function refreshAdapters() {
   // Only refresh adapters that have at least one card referencing them.
   var needed = {};
   store.cards.forEach(function (c) {
-    if (c.adapter && c.adapter !== "meta") needed[c.adapter] = true;
+    if (c.probes) {
+      c.probes.forEach(function (p) {
+        if (p.adapter !== "meta") needed[p.adapter] = true;
+      });
+    } else if (c.adapter && c.adapter !== "meta") {
+      // fallback for old format
+      needed[c.adapter] = true;
+    }
   });
   // Always refresh "meta" healthy probe regardless
   if (store.adapters["meta"]) needed["meta"] = true;

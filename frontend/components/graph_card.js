@@ -111,7 +111,8 @@ function findNearest(svgX, state) {
 function buildSVG(card, containerWidth, containerHeight, state) {
   state.datasets = [];
 
-  if (!card.metrics || card.metrics.length === 0) return "";
+  var probes = card.probes || [];
+  if (probes.length === 0) return "";
 
   var rangeMinutes = card.range || 60;
   var now = Date.now();
@@ -129,22 +130,22 @@ function buildSVG(card, containerWidth, containerHeight, state) {
   var chartH = chartB - chartT;
 
   // Detect metric type for axis formatting
-  var isPct = card.metrics.some(function (m) {
-    return /_pct$/.test(m);
+  var isPct = probes.some(function (p) {
+    return /_pct$/.test(p.metric);
   });
-  var isBytes = card.metrics.some(function (m) {
-    return /_(kb|bytes)$/.test(m);
+  var isBytes = probes.some(function (p) {
+    return /_(kb|bytes)$/.test(p.metric);
   });
-  var isKb = card.metrics.some(function (m) {
-    return /_kb$/.test(m);
+  var isKb = probes.some(function (p) {
+    return /_kb$/.test(p.metric);
   });
 
   if (chartW < 10 || chartH < 10) return "";
 
   // Build datasets
   var datasets = [];
-  card.metrics.forEach(function (metric, idx) {
-    var raw = store.getSeries(card.adapter, metric);
+  probes.forEach(function (probe, idx) {
+    var raw = store.getSeries(probe.adapter, probe.metric);
     if (!raw || raw.length < 2) return;
 
     var pts = [];
@@ -157,7 +158,7 @@ function buildSVG(card, containerWidth, containerHeight, state) {
     if (pts.length < 2) return;
 
     datasets.push({
-      name: metric,
+      name: probe.adapter + "." + probe.metric,
       pts: pts,
       color: LINE_COLORS[idx % LINE_COLORS.length],
     });
@@ -585,15 +586,23 @@ var GraphCard = {
     };
 
     state._fetchData = function () {
-      var adapter =
-        card.probes && card.probes.length > 0 ? card.probes[0].adapter : null;
-      if (!adapter) return;
-      API.query(adapter, card.range || 60)
-        .then(function (data) {
+      if (!card.probes || card.probes.length === 0) return;
+      // Collect unique adapters from all probes
+      var adapters = {};
+      card.probes.forEach(function (p) {
+        adapters[p.adapter] = true;
+      });
+      var range = card.range || 60;
+      var promises = Object.keys(adapters).map(function (adapter) {
+        return API.query(adapter, range).then(function (data) {
           var a = store.adapters[adapter];
           if (a) {
             a.series = parseColumnar(data);
           }
+        });
+      });
+      Promise.all(promises)
+        .then(function () {
           state.updateSVG();
           m.redraw();
         })

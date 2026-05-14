@@ -135,3 +135,82 @@ describe "Faro::Store::Bucketing (latch eval, {{backend.id}})" do
 end
 
 {% end %}
+
+# ── Integration tests ──────────────────────────────────────
+
+private def build_store_and_config(yaml : String) : NamedTuple(store: Faro::Store::Bucketing, config: Faro::Config)
+  config = Faro::Config.from_yaml(yaml)
+  db = Faro::Store::Db.new(config.db)
+  db.setup_schema
+  store = Faro::Store::Bucketing.new(db)
+  {store: store, config: config}
+end
+
+describe "Threshold integration" do
+  it "opens latch when an above-threshold value is written" do
+    yaml = <<-YAML
+      db: "sqlite3://:memory:"
+      thresholds:
+        - name: test-adapter
+          metric: test-adapter.test_metric
+          latches:
+            - name: failing
+              set: 50
+              release: 10
+    YAML
+    result = build_store_and_config(yaml)
+    store = result[:store]
+    config = result[:config]
+    now = Time.utc
+
+    # Write below threshold — should not trigger
+    store.write("test-adapter", {"test_metric" => 30.0}, now)
+    config.thresholds.each do |t|
+      t.latches.each do |l|
+        store.evaluate_latch(t.name, t.metric.split(".")[1], l.name,
+          set: l.set, release: l.release, value: 30.0, sustain: l.sustain, now: now)
+      end
+    end
+    store.latch_open?("test-adapter", "failing").should be_false
+
+    # Write above set — should trigger
+    store.write("test-adapter", {"test_metric" => 80.0}, now + 1.second)
+    config.thresholds.each do |t|
+      t.latches.each do |l|
+        store.evaluate_latch(t.name, t.metric.split(".")[1], l.name,
+          set: l.set, release: l.release, value: 80.0, sustain: l.sustain, now: now + 1.second)
+      end
+    end
+    store.latch_open?("test-adapter", "failing").should be_true
+
+    store.close
+  end
+
+  it "opens below-latch when value drops below set" do
+    yaml = <<-YAML
+      db: "sqlite3://:memory:"
+      thresholds:
+        - name: alive-adapter
+          metric: alive-adapter._alive
+          latches:
+            - name: dead
+              set: 0.5
+              release: 0.9
+    YAML
+    result = build_store_and_config(yaml)
+    store = result[:store]
+    config = result[:config]
+    now = Time.utc
+
+    store.write("alive-adapter", {"_alive" => 0.0}, now)
+    config.thresholds.each do |t|
+      t.latches.each do |l|
+        store.evaluate_latch(t.name, t.metric.split(".")[1], l.name,
+          set: l.set, release: l.release, value: 0.0, sustain: l.sustain, now: now)
+      end
+    end
+    store.latch_open?("alive-adapter", "dead").should be_true
+
+    store.close
+  end
+end

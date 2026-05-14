@@ -98,13 +98,12 @@ var LatchCard = {
                         m(".alert-indicator", {
                           class: active ? "alert-open" : "alert-idle",
                         }),
-                        m(
-                          ".alert-name" + (active ? ".alert-name-active" : ""),
-                          l.name,
-                        ),
+                        active
+                          ? m(".alert-name.alert-name-active", l.name)
+                          : null,
                         active
                           ? m(".alert-badge.alert-badge-open", "ACTIVE")
-                          : null,
+                          : m(".alert-badge.alert-badge-idle", "OK"),
                       ],
                     );
                   }),
