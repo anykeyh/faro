@@ -26,7 +26,7 @@ jobs:
             duckdb_file: libduckdb-linux-aarch64.zip
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Crystal
         uses: crystal-lang/install-crystal@v1
@@ -70,7 +70,7 @@ jobs:
             binary_name: faro-linux-arm64
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Install Crystal
         uses: crystal-lang/install-crystal@v1
@@ -96,7 +96,7 @@ jobs:
         run: crystal build src/main.cr --release -o ${{ matrix.binary_name }}
 
       - name: Upload artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.binary_name }}
           path: ${{ matrix.binary_name }}
@@ -110,15 +110,15 @@ jobs:
       contents: write
 
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           fetch-tags: true
 
       - name: Download all artifacts
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
 
       - name: Create Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: |
             faro-linux-amd64/faro-linux-amd64
