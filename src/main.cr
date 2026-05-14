@@ -29,6 +29,11 @@ config = begin
       log_level = "debug"
     end
 
+    opts.on("-V", "--version", "Show version") do
+      puts "faro v#{Faro.version}"
+      exit 0
+    end
+
     opts.on("-h", "--help", "Show help") do
       puts opts
       exit 0

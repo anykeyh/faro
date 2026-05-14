@@ -122,6 +122,6 @@ module Faro
   end
 
   def self.version : String
-    {{ read_file("shard.yml").split("\n").find(&.starts_with?("version:")).split(": ")[1].strip || "unknown" }}
+    {{ read_file("shard.yml").split("\n").find(&.starts_with?("version:")).split(": \"")[1].split("\"")[0].strip || "unknown" }}
   end
 end

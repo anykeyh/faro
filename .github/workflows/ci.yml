@@ -62,9 +62,9 @@ jobs:
       - name: Build static binary via Docker
         run: |
           docker build --target builder -t faro-builder .
-          id=$$(docker create faro-builder)
-          docker cp $$id:/build/faro ${{ matrix.binary_name }}
-          docker rm $$id > /dev/null
+          id=$(docker create faro-builder)
+          docker cp "$id":/build/faro ${{ matrix.binary_name }}
+          docker rm "$id" > /dev/null
 
       - name: Upload artifact
         uses: actions/upload-artifact@v7
