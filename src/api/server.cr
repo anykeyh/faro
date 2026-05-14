@@ -48,7 +48,8 @@ module Faro::API
           request_path = env.request.path
 
           # Try embedded frontend first (available in --release builds)
-          if content = EmbeddedFrontend.get(request_path)
+          lookup = request_path == "/" ? "/index.html" : request_path
+          if (content = EmbeddedFrontend.get(lookup))
             content_type = case request_path
                            when /\.html?$/ then "text/html; charset=utf-8"
                            when /\.css$/   then "text/css; charset=utf-8"

@@ -116,13 +116,15 @@ jobs:
 
       - name: Download all artifacts
         uses: actions/download-artifact@v8
+        with:
+          merge-multiple: true
 
       - name: Create Release
         uses: softprops/action-gh-release@v3
         with:
           files: |
-            faro-linux-amd64/faro-linux-amd64
-            faro-linux-arm64/faro-linux-arm64
+            faro-linux-amd64
+            faro-linux-arm64
           generate_release_notes: true
 
       - name: Update latest tag
