@@ -3,7 +3,8 @@ require "../../src/store/bucketing"
 require "../../src/config"
 
 def fresh_store_for_latch : Faro::Store::Bucketing
-  db = Faro::Store::DuckDB.new(":memory:")
+  uri = "sqlite3://%3Amemory%3A?max_pool_size=1"
+  db = Faro::Store::Db.new(uri)
   db.setup_schema
   Faro::Store::Bucketing.new(db)
 end

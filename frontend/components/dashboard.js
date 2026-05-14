@@ -11,7 +11,8 @@ var cardComponents = {
 var dragState = {
   drag: null,
   resize: null,
-  _cell: 0, // column width in px
+  editCard: null, // card being edited, or null
+  _cell: 0,
   _addRow: -1,
 };
 
@@ -234,5 +235,12 @@ var Dashboard = {
 function openAddAt(col, row) {
   dragState._addTargetCol = col;
   dragState._addTargetRow = row;
+  m.redraw();
+}
+
+function openEditCard(card) {
+  dragState.editCard = card;
+  // Open the add modal by setting _addTargetCol to a dummy value
+  // The AddCard component will detect editCard instead and pre-fill
   m.redraw();
 }

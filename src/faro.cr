@@ -1,7 +1,7 @@
 require "./config"
 require "./probes"
 require "./runners/container"
-require "./store/duckdb"
+require "./store/db"
 require "./store/bucketing"
 require "./api/server"
 
@@ -9,7 +9,7 @@ module Faro
   DEFAULT_INTERVAL = 10.0
 
   def self.run(config : Config)
-    db = Store::DuckDB.new(config.db)
+    db = Store::Db.new(config.db)
     db.setup_schema
     store = Store::Bucketing.new(db)
 

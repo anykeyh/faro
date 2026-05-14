@@ -2,7 +2,8 @@ require "../spec_helper"
 require "../../src/store/bucketing"
 
 def fresh_bucketing : Faro::Store::Bucketing
-  db = Faro::Store::DuckDB.new(":memory:")
+  uri = "sqlite3://%3Amemory%3A?max_pool_size=1"
+  db = Faro::Store::Db.new(uri)
   db.setup_schema
   Faro::Store::Bucketing.new(db)
 end
@@ -354,7 +355,7 @@ describe Faro::Store::Bucketing do
 
   # ── Delegated methods ──────────────────────────────────────────────────────
 
-  it "delegates list_names to the underlying DuckDB" do
+  it "delegates list_names to the underlying Db" do
     s = fresh_bucketing
     t = Time.utc(2026, 6, 1, 12, 0, 0)
     s.write("cpu", {"pct" => 30.0}, t)

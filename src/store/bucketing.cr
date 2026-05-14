@@ -1,4 +1,4 @@
-require "./duckdb"
+require "./db"
 
 module Faro::Store
   class Bucketing
@@ -16,13 +16,13 @@ module Faro::Store
 
     PURGE_AGE = 365.days
 
-    @db : DuckDB
+    @db : AbstractBackend
     # Key: "name\0metric\0tier_index" → bucket number of latest write
     @last_seen : Hash(String, Int64)
     # Pending sustain timers: "name\0metric\0latch" → Time when value first crossed set
     @pending_open : Hash(String, Time)
 
-    def initialize(@db : DuckDB)
+    def initialize(@db : AbstractBackend)
       @last_seen = {} of String => Int64
       @pending_open = {} of String => Time
     end
@@ -220,11 +220,17 @@ module Faro::Store
       start_time = bucket_start_from_number(start_num, size)
       end_time = bucket_start_from_number(end_num, size)
 
-      rows = @db.connection.query_all(
+      rows = [] of NamedTuple(value: Float64?, avg: Float64?, k: Int32, dev: Float64, min: Float64?, max: Float64?, from_ts: Time, to_ts: Time, resolved_at: Time)
+      @db.connection.query(
         "SELECT value, avg, k, dev, min, max, from_ts, to_ts, resolved_at FROM sensors WHERE name = ? AND metric = ? AND from_ts >= ? AND from_ts < ? ORDER BY from_ts ASC",
-        name, metric, start_time, end_time,
-        as: {value: Float64?, avg: Float64?, k: Int32, dev: Float64, min: Float64?, max: Float64?, from_ts: Time, to_ts: Time, resolved_at: Time}
-      )
+        name, metric, start_time, end_time
+      ) do |rs|
+        rs.each do
+          rows << {value: rs.read(Float64?), avg: rs.read(Float64?), k: rs.read(Int32), dev: rs.read(Float64),
+                   min: rs.read(Float64?), max: rs.read(Float64?), from_ts: rs.read(Time), to_ts: rs.read(Time),
+                   resolved_at: rs.read(Time)}
+        end
+      end
       return if rows.empty?
 
       # Group rows by their bucket number (floor to size).

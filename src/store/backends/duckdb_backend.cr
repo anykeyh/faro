@@ -1,62 +1,32 @@
 require "duckdb"
-require "db"
+require "./abstract_backend"
 
 module Faro::Store
-  class DuckDB
-    getter path : String
-    getter connection : DB::Connection
+  class DuckDbBackend < AbstractBackend
+    getter connection : DuckDB::Connection
 
-    BUCKET_SIZE = 1.minute
-
-    def initialize(@path : String)
-      # Use a single dedicated connection via DB.connect (not DB.open which
-      # uses a pool).  This is essential for in-memory DuckDB because each
-      # DuckDB connection creates its own separate in-memory database.
-      uri = @path == ":memory:" ? ::DuckDB::IN_MEMORY : "duckdb://#{@path}"
-      @connection = DB.connect(uri)
+    def initialize(@uri : String)
+      @connection = DB.connect(@uri).as(DuckDB::Connection)
     end
 
-    def setup_schema
-      @connection.exec(<<-SQL)
-        CREATE TABLE IF NOT EXISTS sensors (
-          name        VARCHAR     NOT NULL,
-          metric      VARCHAR     NOT NULL,
-          value       DOUBLE,
-          avg         DOUBLE,
-          k           INTEGER     NOT NULL DEFAULT 1,
-          dev         DOUBLE      NOT NULL DEFAULT 0.0,
-          min         DOUBLE,
-          max         DOUBLE,
-          from_ts     TIMESTAMP   NOT NULL,
-          to_ts       TIMESTAMP   NOT NULL,
-          resolved_at TIMESTAMP   NOT NULL,
-          PRIMARY KEY (name, metric, from_ts)
-        )
-      SQL
-      @connection.exec(<<-SQL)
-        CREATE INDEX IF NOT EXISTS idx_sensors_name_from
-          ON sensors (name, from_ts)
-      SQL
+    def setup_schema : Nil
+      @connection.exec("CREATE TABLE IF NOT EXISTS sensors (" \
+        "name VARCHAR NOT NULL, metric VARCHAR NOT NULL, value DOUBLE, avg DOUBLE," \
+        "k INTEGER NOT NULL DEFAULT 1, dev DOUBLE NOT NULL DEFAULT 0.0, min DOUBLE, max DOUBLE," \
+        "from_ts TIMESTAMP NOT NULL, to_ts TIMESTAMP NOT NULL, resolved_at TIMESTAMP NOT NULL," \
+        "PRIMARY KEY (name, metric, from_ts))")
 
-      @connection.exec(<<-SQL)
-        CREATE TABLE IF NOT EXISTS latch_events (
-          id           INTEGER,
-          name         VARCHAR     NOT NULL,
-          latch        VARCHAR     NOT NULL,
-          metric       VARCHAR     NOT NULL,
-          value        DOUBLE      NOT NULL,
-          from_ts      TIMESTAMP   NOT NULL,
-          to_ts        TIMESTAMP,
-          acknowledged BOOLEAN     DEFAULT FALSE
-        )
-      SQL
-      @connection.exec(<<-SQL)
-        CREATE INDEX IF NOT EXISTS idx_latch_events_name
-          ON latch_events (name, latch)
-      SQL
+      @connection.exec("CREATE INDEX IF NOT EXISTS idx_sensors_name_from ON sensors (name, from_ts)")
+
+      @connection.exec("CREATE TABLE IF NOT EXISTS latch_events (" \
+        "id INTEGER, name VARCHAR NOT NULL, latch VARCHAR NOT NULL, metric VARCHAR NOT NULL," \
+        "value DOUBLE NOT NULL, from_ts TIMESTAMP NOT NULL, to_ts TIMESTAMP," \
+        "acknowledged BOOLEAN DEFAULT FALSE)")
+
+      @connection.exec("CREATE INDEX IF NOT EXISTS idx_latch_events_name ON latch_events (name, latch)")
     end
 
-    def write(adapter_name : String, data : Hash(String, Float64), timestamp : Time)
+    def write(adapter_name : String, data : Hash(String, Float64), timestamp : Time) : Nil
       return if data.empty?
       bucket_start = bucket_floor(timestamp)
       bucket_end   = bucket_start + BUCKET_SIZE
@@ -95,12 +65,9 @@ module Faro::Store
         metric: String, value: Float64?, avg: Float64?, k: Int32, dev: Float64,
         min: Float64?, max: Float64?, from_ts: Time, to_ts: Time, resolved_at: Time
       )
-      @connection.query(<<-SQL, adapter_name, since, finish) do |rs|
-          SELECT metric, value, avg, k, dev, min, max, from_ts, to_ts, resolved_at
-          FROM sensors
-          WHERE name = ? AND from_ts >= ? AND from_ts < ?
-          ORDER BY from_ts ASC
-        SQL
+      sql = "SELECT metric, value, avg, k, dev, min, max, from_ts, to_ts, resolved_at " \
+            "FROM sensors WHERE name = ? AND from_ts >= ? AND from_ts < ? ORDER BY from_ts ASC"
+      @connection.query(sql, adapter_name, since, finish) do |rs|
         rs.each do
           rows << {metric: rs.read(String), value: rs.read(Float64?), avg: rs.read(Float64?),
                    k: rs.read(Int32), dev: rs.read(Float64), min: rs.read(Float64?),
@@ -118,8 +85,6 @@ module Faro::Store
       end
       rows
     end
-
-    # ── Threshold / Latch methods ────────────────────────────────────────────
 
     def latest_value(adapter_name : String, metric : String) : Float64?
       result = nil
@@ -143,14 +108,14 @@ module Faro::Store
       count > 0
     end
 
-    def open_latch(threshold_name : String, latch_name : String, metric : String, value : Float64, now : Time)
+    def open_latch(threshold_name : String, latch_name : String, metric : String, value : Float64, now : Time) : Nil
       @connection.exec(
         "INSERT INTO latch_events (name, latch, metric, value, from_ts) VALUES (?, ?, ?, ?, ?)",
         threshold_name, latch_name, metric, value, now
       )
     end
 
-    def close_latch(threshold_name : String, latch_name : String, value : Float64, now : Time)
+    def close_latch(threshold_name : String, latch_name : String, value : Float64, now : Time) : Nil
       @connection.exec(
         "UPDATE latch_events SET to_ts = ?, value = ? WHERE name = ? AND latch = ? AND to_ts IS NULL",
         now, value, threshold_name, latch_name
@@ -159,12 +124,8 @@ module Faro::Store
 
     def open_latches : Array(NamedTuple(name: String, latch: String, metric: String, value: Float64, from_ts: Time))
       rows = [] of NamedTuple(name: String, latch: String, metric: String, value: Float64, from_ts: Time)
-      @connection.query(<<-SQL) do |rs|
-          SELECT name, latch, metric, value, from_ts
-          FROM latch_events
-          WHERE to_ts IS NULL
-          ORDER BY name, latch
-        SQL
+      sql = "SELECT name, latch, metric, value, from_ts FROM latch_events WHERE to_ts IS NULL ORDER BY name, latch"
+      @connection.query(sql) do |rs|
         rs.each do
           rows << {name: rs.read(String), latch: rs.read(String), metric: rs.read(String),
                    value: rs.read(Float64), from_ts: rs.read(Time)}
@@ -173,28 +134,13 @@ module Faro::Store
       rows
     end
 
-    def clear_data
+    def clear_data : Nil
       @connection.exec("DELETE FROM sensors")
       @connection.exec("DELETE FROM latch_events")
     end
 
-    def close
+    def close : Nil
       @connection.close
-    end
-
-    private def read_existing(name, metric, bucket_start)
-      existing = nil
-      @connection.query("SELECT k, avg, dev, min, max FROM sensors WHERE name = ? AND metric = ? AND from_ts = ?",
-                         name, metric, bucket_start) do |rs|
-        rs.each { existing = {k: rs.read(Int32), avg: rs.read(Float64), dev: rs.read(Float64), min: rs.read(Float64), max: rs.read(Float64)} }
-      end
-      existing
-    end
-
-    private def bucket_floor(ts : Time) : Time
-      span = ts - Time::UNIX_EPOCH
-      floored = span - (span.total_seconds % BUCKET_SIZE.total_seconds).seconds
-      Time::UNIX_EPOCH + floored
     end
   end
 end

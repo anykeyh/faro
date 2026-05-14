@@ -5,7 +5,7 @@
 # thresholds: named alerts that open/close latches based on metric values
 # server: HTTP API bind address and port
 
-db: ":memory:"
+db: "duckdb://[:memory:]"
 
 server:
   host: "0.0.0.0"

@@ -64,6 +64,17 @@ var LatchCard = {
                 href: "#",
                 onclick: function (e) {
                   e.preventDefault();
+                  openEditCard(card);
+                },
+              },
+              "\u270E",
+            ),
+            m(
+              "a.card-action",
+              {
+                href: "#",
+                onclick: function (e) {
+                  e.preventDefault();
                   if (confirm("Remove this card?")) store.removeCard(card);
                 },
               },

@@ -1,6 +1,6 @@
 require "../spec_helper"
 
-describe Faro::Store::DuckDB do
+describe Faro::Store::Db do
   # ── Schema ──────────────────────────────────────────────────────────────────
 
   it "starts empty after setup_schema" do

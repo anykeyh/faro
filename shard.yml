@@ -8,12 +8,20 @@ description: |
   Server resource monitoring daemon with HTTP API and embedded storage.
 
 dependencies:
+  db:
+    github: crystal-lang/crystal-db
+    version: ">=0.14"
+
   kemal:
     github: kemalcr/kemal
     version: ~> 1.6
 
   duckdb:
     github: anykeyh/crystal-duckdb
+
+  sqlite3:
+    github: crystal-lang/crystal-sqlite3
+    version: 0.23.0
 
   anyolite:
     github: Anyolite/anyolite

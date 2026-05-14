@@ -1,5 +1,9 @@
+require "sqlite3"
+require "duckdb"
+
 require "./config"
 require "./faro"
+
 
 config = begin
   path = "./config.yml"

@@ -7,22 +7,22 @@
 }
 
 :root {
-    --bg: #0d0b08;
-    --surface: #1a1713;
-    --surface-hover: #25211c;
-    --border: #2f2a23;
-    --text: #e8e2d8;
-    --text-dim: #9e968a;
-    --accent: #d4a843;
-    --accent-dim: #a38333;
-    --green: #4a9e6b;
-    --yellow: #c9922a;
-    --red: #b94a4a;
+    --bg: #0a0a1a;
+    --surface: #0f0f24;
+    --surface-hover: #181840;
+    --border: #1e1e3a;
+    --text: #efefed;
+    --text-dim: #9a9ab8;
+    --accent: #e4b61a;
+    --accent-dim: #f8ebb8;
+    --green: #2ecc71;
+    --yellow: #fbe134;
+    --red: #e74c4c;
     --radius: 10px;
-    --valid: #4a9e6b;
-    --valid-soft: rgba(74, 158, 107, 0.12);
-    --invalid: #b94a4a;
-    --invalid-soft: rgba(185, 74, 74, 0.12);
+    --valid: #2ecc71;
+    --valid-soft: rgba(46, 204, 113, 0.12);
+    --invalid: #e74c4c;
+    --invalid-soft: rgba(231, 76, 76, 0.12);
 }
 
 body {
@@ -180,8 +180,16 @@ header h1 {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+    background: var(--surface);
     border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
+}
+
+.card-header .card-title .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
     flex-shrink: 0;
 }
 
@@ -202,14 +210,6 @@ header h1 {
 
 .card-title:active {
     cursor: grabbing;
-}
-
-.card-title .dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 50%;
-    background: var(--accent);
-    flex-shrink: 0;
 }
 
 .card-actions {

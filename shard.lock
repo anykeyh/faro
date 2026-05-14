@@ -14,11 +14,11 @@ shards:
 
   db:
     git: https://github.com/crystal-lang/crystal-db.git
-    version: 0.13.1
+    version: 0.14.0
 
   duckdb:
     git: https://github.com/anykeyh/crystal-duckdb.git
-    version: 0.2.5+git.commit.d2f8fdfafe45dac261ffc0e00bb9a59619a0ae5f
+    version: 0.2.5+git.commit.3834dbcdc37eb44c3a37ae6dd51bbe34dd344a7e
 
   exception_page:
     git: https://github.com/crystal-loot/exception_page.git
@@ -39,4 +39,8 @@ shards:
   reply:
     git: https://github.com/i3oris/reply.git
     version: 0.3.1+git.commit.13f7eba083f138dd063c68b859c8e315f44fb523
+
+  sqlite3:
+    git: https://github.com/crystal-lang/crystal-sqlite3.git
+    version: 0.23.0
 

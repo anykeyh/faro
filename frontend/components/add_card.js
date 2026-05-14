@@ -11,14 +11,28 @@ var AddCard = {
   },
   view: function (vnode) {
     var s = vnode.state;
+    var editCard = dragState.editCard;
 
-    if (
-      !s.open &&
-      dragState._addTargetCol !== undefined &&
-      dragState._addTargetCol !== null
-    ) {
-      s.open = true;
-      s.step = "type";
+    if (!s.open) {
+      if (editCard) {
+        // Edit mode — pre-fill from the card being edited
+        s.type = editCard.type;
+        s.adapter = editCard.adapter || "";
+        s.metrics = (editCard.metrics || []).slice();
+        s.alertNames = (editCard.alertNames || []).slice();
+        if (editCard.type === "alert") {
+          s.step = "alert-select";
+        } else {
+          s.step = "metrics";
+        }
+        s.open = true;
+      } else if (
+        dragState._addTargetCol !== undefined &&
+        dragState._addTargetCol !== null
+      ) {
+        s.open = true;
+        s.step = "type";
+      }
     }
 
     if (!s.open) return null;
@@ -104,43 +118,52 @@ var AddCard = {
           {
             onclick: function () {
               if (s.alertNames.length === 0) return;
-              var card = {
-                id: store.nextCardId++,
-                type: "alert",
-                adapter: "",
-                metrics: [],
-                alertNames: s.alertNames.slice(),
-                w: 1,
-                h: 1,
-                title: "Alerts",
-                range: 60,
-              };
-              if (
-                dragState._addTargetCol !== undefined &&
-                dragState._addTargetCol !== null
-              ) {
+              if (editCard) {
+                // Update existing alert card
+                editCard.alertNames = s.alertNames.slice();
+                editCard.title = "Alerts";
+                store.saveLayout();
+              } else {
+                // Create new alert card
+                var card = {
+                  id: store.nextCardId++,
+                  type: "alert",
+                  adapter: "",
+                  metrics: [],
+                  alertNames: s.alertNames.slice(),
+                  w: 1,
+                  h: 1,
+                  title: "Alerts",
+                  range: 60,
+                };
                 if (
-                  canPlace(
-                    card.id,
-                    dragState._addTargetCol,
-                    dragState._addTargetRow,
-                    card.w,
-                    card.h,
-                  )
+                  dragState._addTargetCol !== undefined &&
+                  dragState._addTargetCol !== null
                 ) {
-                  card.x = dragState._addTargetCol;
-                  card.y = dragState._addTargetRow;
+                  if (
+                    canPlace(
+                      card.id,
+                      dragState._addTargetCol,
+                      dragState._addTargetRow,
+                      card.w,
+                      card.h,
+                    )
+                  ) {
+                    card.x = dragState._addTargetCol;
+                    card.y = dragState._addTargetRow;
+                  } else {
+                    store.autoPlace(card);
+                  }
                 } else {
                   store.autoPlace(card);
                 }
-              } else {
-                store.autoPlace(card);
+                store.cards.push(card);
+                store.saveLayout();
               }
-              store.cards.push(card);
-              store.saveLayout();
               s.open = false;
               s.step = "type";
               s.alertNames = [];
+              dragState.editCard = null;
               dragState._addTargetCol = null;
               dragState._addTargetRow = null;
             },
@@ -204,41 +227,74 @@ var AddCard = {
           {
             onclick: function () {
               if (s.metrics.length === 0) return;
-              var cardWidth = s.type === "graph" ? 2 : 1;
-              store.addCard(
-                s.type,
-                s.adapter,
-                s.metrics.slice(),
-                cardWidth,
-                dragState._addTargetCol,
-                dragState._addTargetRow,
-              );
+              if (editCard) {
+                editCard.adapter = s.adapter;
+                editCard.metrics = s.metrics.slice();
+                editCard.title = store.cardLabel(editCard);
+                store.saveLayout();
+              } else {
+                var cardWidth = s.type === "graph" ? 2 : 1;
+                store.addCard(
+                  s.type,
+                  s.adapter,
+                  s.metrics.slice(),
+                  cardWidth,
+                  dragState._addTargetCol,
+                  dragState._addTargetRow,
+                );
+              }
               s.open = false;
               s.step = "type";
               s.metrics = [];
               s.adapter = "";
+              dragState.editCard = null;
               dragState._addTargetCol = null;
               dragState._addTargetRow = null;
             },
           },
-          "Add card",
+          editCard ? "Save" : "Add card",
         ),
       ];
     }
+
+    function closeModal() {
+      s.open = false;
+      s.step = "type";
+      s.metrics = [];
+      s.alertNames = [];
+      dragState.editCard = null;
+      s.adapter = "";
+      dragState._addTargetCol = null;
+      dragState._addTargetRow = null;
+    }
+
+    // Close on Escape key
+    function onKeyDown(e) {
+      if (e.key === "Escape") {
+        closeModal();
+        m.redraw();
+      }
+    }
+    document.addEventListener("keydown", onKeyDown);
+    // We use config to clean up the listener when the modal DOM is removed
 
     return m(
       ".add-card-overlay",
       {
         onclick: function (e) {
           if (e.target === e.currentTarget) {
-            s.open = false;
-            s.step = "type";
-            s.metrics = [];
-            s.alertNames = [];
-            s.adapter = "";
-            dragState._addTargetCol = null;
-            dragState._addTargetRow = null;
+            closeModal();
           }
+        },
+        config: function (el, inited) {
+          if (!inited) {
+            // On first init, store the cleanup function
+            el._closeHandler = onKeyDown;
+          }
+          // Return a cleanup function that removes the listener
+          return function () {
+            document.removeEventListener("keydown", onKeyDown);
+          };
         },
       },
       [
