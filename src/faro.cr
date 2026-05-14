@@ -38,6 +38,7 @@ module Faro
                       tmp = File.tempfile("faro_#{name}", ".sh") do |f|
                         f.print(content)
                       end
+                      File.chmod(tmp.path, 0o755)
                       temp_files << tmp.path
                       tmp.path
                     else
@@ -50,12 +51,15 @@ module Faro
             result = runner.run(script_path, args: adapter.args, env: adapter.env, via: adapter.via)
             if result.success?
               data = Hash(String, Float64).from_json(result.stdout)
+              data["_alive"] = 1.0
               store.write(adapter.name, data, Time.utc)
             else
               STDERR.puts "[#{adapter.name}] exit #{result.exit_code}: #{result.stderr}"
+              store.write(adapter.name, {"_alive" => 0.0}, Time.utc)
             end
           rescue ex
             STDERR.puts "ERROR in adapter '#{adapter.name}': #{ex.message}"
+            store.write(adapter.name, {"_alive" => 0.0}, Time.utc)
           end
           sleep sleep_span
         end

@@ -61,7 +61,9 @@ struct Faro::Config
     include YAML::Serializable
 
     property name : String
+    @[YAML::Field(converter: Faro::NumberStringConverter)]
     property set : Float64
+    @[YAML::Field(converter: Faro::NumberStringConverter)]
     property release : Float64
     @[YAML::Field(converter: Faro::TimeStringConverter)]
     property sustain : Float64?  # seconds, optional
@@ -88,6 +90,21 @@ struct Faro::Config
     thresholds.each do |t|
       t.latches.each(&.validate!)
     end
+  end
+end
+
+# YAML converter that accepts a number (int or float) or a numeric string.
+module Faro::NumberStringConverter
+  def self.from_yaml(ctx : YAML::ParseContext, node : YAML::Nodes::Node) : Float64
+    if node.is_a?(YAML::Nodes::Scalar)
+      node.value.to_f64
+    else
+      raise "expected a scalar, got #{node.class}"
+    end
+  end
+
+  def self.to_yaml(value : Float64, builder : YAML::Nodes::Builder)
+    value.to_yaml(builder)
   end
 end
 

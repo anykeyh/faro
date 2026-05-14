@@ -15,7 +15,7 @@ describe Faro::EmbeddedProbes do
     script = Faro::EmbeddedProbes.resolve("$cpu")
     script.should_not be_nil
     script.not_nil!.should_not be_empty
-    script.not_nil!.should contain("#!/usr/bin/env bash")
+    script.not_nil!.should contain("#!/bin/sh")
   end
 
   it "returns nil for unknown $name" do

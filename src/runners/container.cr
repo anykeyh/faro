@@ -1,9 +1,8 @@
 require "./runner"
 require "./local"
 require "./docker"
+require "./ssh"
 
-# Registry of transport runners.
-# Selects the right runner based on `via.type` (defaults to "local").
 class Faro::RunnerContainer
   @registry : Hash(String, Faro::Runner)
 
@@ -11,6 +10,7 @@ class Faro::RunnerContainer
     @registry = {
       "local"  => Faro::Runners::Local.new,
       "docker" => Faro::Runners::Docker.new,
+      "ssh"    => Faro::Runners::SSH.new,
     }
   end
 

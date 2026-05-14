@@ -1,24 +1,23 @@
-#!/usr/bin/env bash
+#!/bin/sh
 # Processes probe for Faro.
 #
 # Returns JSON: running, sleeping, zombie, blocked, total
 
 set -eo pipefail
 
-total=0; running=0; sleeping=0; zombie=0; blocked=0
+# Count process states from /proc/stat (fast, no subprocess per pid)
+procs_running=$(grep procs_running /proc/stat 2>/dev/null | awk '{print $2}')
+procs_blocked=$(grep procs_blocked /proc/stat 2>/dev/null | awk '{print $2}')
 
-while IFS= read -r line; do
-  total=$((total + 1))
-  state=$(echo "$line" | awk '{print $3}')
-  case "$state" in
-    R) running=$((running + 1)) ;;
-    S|D|I) sleeping=$((sleeping + 1)) ;;
-    Z) zombie=$((zombie + 1)) ;;
-  esac
-done < <(ps -eo stat 2>/dev/null | tail -n +2)
+# Use ps for detailed breakdown (single invocation)
+eval "$(ps -eo stat 2>/dev/null | tail -n +2 | awk '
+  { total++ }
+  /^R/ { running++ }
+  /^[SDI]/ { sleeping++ }
+  /^Z/ { zombie++ }
+  END {
+    printf "total=%d running=%d sleeping=%d zombie=%d", total, running, sleeping, zombie
+  }
+')"
 
-# /proc/stat also has process counts
-procs_running=$(grep procs_running /proc/stat 2>/dev/null | awk '{print $2}' || echo 0)
-procs_blocked=$(grep procs_blocked /proc/stat 2>/dev/null | awk '{print $2}' || echo 0)
-
-echo "{\"total\": ${total}, \"running\": ${running}, \"sleeping\": ${sleeping}, \"zombie\": ${zombie}, \"blocked\": ${procs_blocked}}"
+echo "{\"total\": ${total:-0}, \"running\": ${running:-0}, \"sleeping\": ${sleeping:-0}, \"zombie\": ${zombie:-0}, \"blocked\": ${procs_blocked:-0}}"
