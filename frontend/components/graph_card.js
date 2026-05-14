@@ -39,6 +39,21 @@ function fmtAxisTime(date, totalMinutes) {
   return h + ":" + m + ":" + s;
 }
 
+// Format byte/number for graph labels
+function friendlyBytes(n, inKb) {
+  if (n === null || n === undefined) return "—";
+  var bytes = inKb ? n * 1024 : n;
+  if (bytes < 1024) return bytes.toFixed(0) + " B";
+  var kb = bytes / 1024;
+  if (kb < 1024) return kb.toFixed(1) + " KB";
+  var mb = kb / 1024;
+  if (mb < 1024) return mb.toFixed(1) + " MB";
+  var gb = mb / 1024;
+  if (gb < 1024) return gb.toFixed(2) + " GB";
+  var tb = gb / 1024;
+  return tb.toFixed(2) + " TB";
+}
+
 function esc(str) {
   return String(str)
     .replace(/&/g, "&amp;")
@@ -113,9 +128,15 @@ function buildSVG(card, containerWidth, containerHeight, state) {
   var chartW = chartR - chartL;
   var chartH = chartB - chartT;
 
-  // Detect if metrics are percentages (0-1) for axis formatting
+  // Detect metric type for axis formatting
   var isPct = card.metrics.some(function (m) {
     return /_pct$/.test(m);
+  });
+  var isBytes = card.metrics.some(function (m) {
+    return /_(kb|bytes)$/.test(m);
+  });
+  var isKb = card.metrics.some(function (m) {
+    return /_kb$/.test(m);
   });
 
   if (chartW < 10 || chartH < 10) return "";
@@ -175,6 +196,8 @@ function buildSVG(card, containerWidth, containerHeight, state) {
   state.chartL = chartL;
   state.chartR = chartR;
   state.isPct = isPct;
+  state.isBytes = isBytes;
+  state.isKb = isKb;
 
   // ── Build SVG string ─────────────────────────────────────
 
@@ -195,8 +218,15 @@ function buildSVG(card, containerWidth, containerHeight, state) {
     var t = i / tickCount;
     var y = chartT + t * chartH;
     var val = maxVal - t * valRange;
-    var label =
-      (val >= 1000 ? val.toFixed(0) : val.toFixed(1)) + (isPct ? "%" : "");
+    var label;
+    if (isBytes) {
+      label = friendlyBytes(val, isKb);
+    } else {
+      var displayVal = isPct ? val * 100 : val;
+      label =
+        (displayVal >= 1000 ? displayVal.toFixed(0) : displayVal.toFixed(1)) +
+        (isPct ? "%" : "");
+    }
     parts.push(
       '<line x1="' +
         chartL +
@@ -216,6 +246,28 @@ function buildSVG(card, containerWidth, containerHeight, state) {
         '" fill="#9e968a" font-family="sans-serif" font-size="11" text-anchor="end" dominant-baseline="middle">' +
         esc(label) +
         "</text>",
+    );
+  }
+
+  // Y-axis unit label
+  if (isBytes) {
+    var unitLabel = isKb ? "KB" : "Bytes";
+    parts.push(
+      '<text x="' +
+        (chartL - 4) +
+        '" y="' +
+        (chartT - 2) +
+        '" fill="#9e968a" font-family="sans-serif" font-size="9" text-anchor="end" dominant-baseline="baseline">' +
+        esc(unitLabel) +
+        "</text>",
+    );
+  } else if (isPct) {
+    parts.push(
+      '<text x="' +
+        (chartL - 4) +
+        '" y="' +
+        (chartT - 2) +
+        '" fill="#9e968a" font-family="sans-serif" font-size="9" text-anchor="end" dominant-baseline="baseline">%</text>',
     );
   }
 
@@ -443,6 +495,32 @@ function drawHover(svgEl, nearest, state) {
     dot.setAttribute("fill", item.color);
     overlay.appendChild(dot);
 
+    var displayVal;
+    var suffix = "";
+    if (state.isBytes) {
+      displayVal = friendlyBytes(item.value, state.isKb);
+    } else {
+      displayVal = (state.isPct ? item.value * 100 : item.value).toFixed(1);
+      if (state.isPct) suffix = "%";
+    }
+
+    // Background rect behind label
+    var labelText = item.name + ": " + displayVal + suffix;
+    var labelWidth = labelText.length * 7.2;
+    var bg = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    bg.setAttribute(
+      "x",
+      tipAnchor === "start" ? tipX + 8 : tipX - labelWidth - 8,
+    );
+    bg.setAttribute("y", ptY - 9);
+    bg.setAttribute("width", labelWidth + 8);
+    bg.setAttribute("height", "18");
+    bg.setAttribute("rx", "3");
+    bg.setAttribute("fill", "rgba(13, 11, 8, 0.75)");
+    bg.setAttribute("stroke", "rgba(47, 42, 35, 0.5)");
+    bg.setAttribute("stroke-width", "1");
+    overlay.appendChild(bg);
+
     // Value label next to circle
     var label = document.createElementNS("http://www.w3.org/2000/svg", "text");
     label.setAttribute("x", tipAnchor === "start" ? tipX + 12 : tipX - 12);
@@ -453,14 +531,32 @@ function drawHover(svgEl, nearest, state) {
     label.setAttribute("font-weight", "600");
     label.setAttribute("text-anchor", tipAnchor === "start" ? "start" : "end");
     label.setAttribute("dominant-baseline", "middle");
-    var suffix = state.isPct ? "%" : "";
-    label.textContent = item.name + ": " + item.value.toFixed(1) + suffix;
+    label.textContent = labelText;
     overlay.appendChild(label);
   });
 }
 
+// Parse columnar format { fields, values } into groups of records keyed by metric
+function parseColumnar(data) {
+  var series = {};
+  if (!data || !data.fields || !data.values) return series;
+  var fields = data.fields;
+  data.values.forEach(function (row) {
+    var record = {};
+    fields.forEach(function (f, i) {
+      record[f] = row[i];
+    });
+    var metric = record.metric;
+    if (!metric) return;
+    if (!series[metric]) series[metric] = [];
+    series[metric].push(record);
+  });
+  return series;
+}
+
 var GraphCard = {
   oncreate: function (vnode) {
+    var card = vnode.attrs.card;
     var state = vnode.state;
 
     state.updateSVG = function () {
@@ -469,10 +565,9 @@ var GraphCard = {
       var parent = container.parentElement;
       var w = parent.clientWidth || 600;
       var h = parent.clientHeight || 200;
-      var svg = buildSVG(vnode.attrs.card, w, h, state);
+      var svg = buildSVG(card, w, h, state);
       container.innerHTML = svg;
 
-      // Attach hover listener to the SVG
       var svgEl = container.querySelector("svg");
       if (svgEl) {
         svgEl.onmousemove = function (e) {
@@ -489,10 +584,32 @@ var GraphCard = {
       }
     };
 
-    state.updateSVG();
+    state._fetchData = function () {
+      API.query(card.adapter, card.range || 60)
+        .then(function (data) {
+          var a = store.adapters[card.adapter];
+          if (a) {
+            a.series = parseColumnar(data);
+          }
+          state.updateSVG();
+          m.redraw();
+        })
+        .catch(function () {});
+    };
+
+    state._fetchData();
+    state._lastFetch = Date.now();
   },
   onupdate: function (vnode) {
-    if (vnode.state.updateSVG) vnode.state.updateSVG();
+    var card = vnode.attrs.card;
+    var state = vnode.state;
+    // Re-fetch if range changed, otherwise just re-render with latest series
+    if (state._lastRange !== card.range) {
+      state._lastRange = card.range;
+      state._fetchData();
+    } else if (state.updateSVG) {
+      state.updateSVG();
+    }
   },
   view: function (vnode) {
     var card = vnode.attrs.card;

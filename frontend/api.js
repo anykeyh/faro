@@ -17,6 +17,7 @@ API.sensors = function () {
   return API.fetchJSON("/api/sensors");
 };
 
+// Full query — returns columnar format { fields, values }
 API.query = function (name, minutes) {
   var since = new Date(Date.now() - (minutes || 5) * 60000).toISOString();
   var until = new Date().toISOString();
@@ -30,9 +31,9 @@ API.query = function (name, minutes) {
   );
 };
 
+// Latest values only — lightweight, for the polling loop
 API.latest = function (name) {
-  // Query a generous window so all card ranges are covered.
-  return API.query(name, 7 * 24 * 60);
+  return API.fetchJSON("/api/sensors/" + encodeURIComponent(name) + "/latest");
 };
 
 API.latches = function () {

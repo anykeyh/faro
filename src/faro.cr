@@ -66,6 +66,22 @@ module Faro
       end
     end
 
+    # Meta healthy probe — periodically checks that all adapters are alive
+    spawn(name: "meta:healthy") do
+      loop do
+        sleep 10.seconds
+        begin
+          all_alive = config.adapters.all? do |a|
+            v = store.latest_value(a.name, "_alive")
+            v && v > 0.5
+          end
+          store.write("meta", {"healthy" => all_alive ? 1.0 : 0.0}, Time.utc)
+        rescue ex
+          STDERR.puts "ERROR in meta healthy probe: #{ex.message}"
+        end
+      end
+    end
+
     # Clean up temp files on exit.
     at_exit do
       temp_files.each { |p| File.delete(p) rescue nil }

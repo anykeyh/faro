@@ -44,22 +44,20 @@ var store = {
   editCard: null, // card being edited, or null
 };
 
-function latestBucket(buckets) {
-  if (!buckets || buckets.length === 0) return null;
-  return buckets[buckets.length - 1];
-}
-
 store.getVal = function (adapterName, metric) {
   var a = store.adapters[adapterName];
   if (!a) return null;
-  var bucket = latestBucket(a.series[metric]);
-  return bucket ? bucket.value : null;
+  // `values` is populated by the /latest endpoint (fast poll)
+  if (a.values) return a.values[metric] !== undefined ? a.values[metric] : null;
+  // `series` is populated by the full /query endpoint (graph cards)
+  var bucket = a.series && a.series[metric];
+  return bucket && bucket.length > 0 ? bucket[bucket.length - 1].value : null;
 };
 
 store.getSeries = function (adapterName, metric) {
   var a = store.adapters[adapterName];
   if (!a) return null;
-  return a.series[metric] || null;
+  return a.series ? a.series[metric] || null : null;
 };
 
 store.cardLabel = function (card) {

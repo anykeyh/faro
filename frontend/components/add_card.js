@@ -168,7 +168,9 @@ var AddCard = {
       ];
     } else if (s.step === "metrics") {
       var adapterData = store.adapters[s.adapter];
-      var metrics = adapterData ? Object.keys(adapterData.series).sort() : [];
+      var metrics = adapterData
+        ? Object.keys(adapterData.values || adapterData.series || {}).sort()
+        : [];
 
       modalContent = [
         m("h3", "Select metrics"),

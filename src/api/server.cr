@@ -86,31 +86,43 @@ module Faro::API
         finish = parse_time(env.params.query["until"]?) || Time.utc
 
         rows = @store.query(name, since, finish)
-        grouped = {} of String => Array(NamedTuple(
-          value: Float64?, avg: Float64?, k: Int32, dev: Float64,
-          min: Float64?, max: Float64?, from_ts: String, to_ts: String, resolved_at: String
-        ))
 
-        rows.each do |row|
-          key = row[:metric]
-          grouped[key] ||= [] of NamedTuple(
-            value: Float64?, avg: Float64?, k: Int32, dev: Float64,
-            min: Float64?, max: Float64?, from_ts: String, to_ts: String, resolved_at: String
-          )
-          grouped[key] << {
-            value:       row[:value],
-            avg:         row[:avg],
-            k:           row[:k],
-            dev:         row[:dev],
-            min:         row[:min],
-            max:         row[:max],
-            from_ts:     row[:from_ts].to_rfc3339,
-            to_ts:       row[:to_ts].to_rfc3339,
-            resolved_at: row[:resolved_at].to_rfc3339,
-          }
+        # Build columnar format: { fields: [...], values: [[...], ...] }
+        # fields = [metric, value, avg, k, dev, min, max, from_ts, to_ts, resolved_at]
+        # Each value row is an array matching the field order.
+        fields = ["metric", "value", "avg", "k", "dev", "min", "max", "from_ts", "to_ts", "resolved_at"]
+        values = rows.map do |row|
+          [
+            row[:metric],
+            row[:value],
+            row[:avg],
+            row[:k],
+            row[:dev],
+            row[:min],
+            row[:max],
+            row[:from_ts].to_rfc3339,
+            row[:to_ts].to_rfc3339,
+            row[:resolved_at].to_rfc3339,
+          ]
         end
 
-        {"name" => name, "since" => since.to_rfc3339, "until" => finish.to_rfc3339, "series" => grouped}.to_json
+        {"name" => name, "since" => since.to_rfc3339, "until" => finish.to_rfc3339, "fields" => fields, "values" => values}.to_json
+      end
+
+      # Lightweight endpoint: returns the latest value per metric (tiny payload)
+      get "/api/sensors/:name/latest" do |env|
+        env.response.content_type = "application/json"
+
+        name = env.params.url["name"]
+
+        entries = @store.list_names.select { |e| e[:name] == name }
+        result = {} of String => Float64?
+
+        entries.each do |entry|
+          result[entry[:metric]] = @store.latest_value(name, entry[:metric])
+        end
+
+        {"name" => name, "values" => result}.to_json
       end
 
       # ── Latch endpoint ──────────────────────────────────────────
