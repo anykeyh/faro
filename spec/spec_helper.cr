@@ -1,6 +1,8 @@
 require "spec"
 require "sqlite3"
-require "duckdb"
+{% if flag?(:duckdb) %}
+  require "duckdb"
+{% end %}
 
 require "../src/store/db"
 
