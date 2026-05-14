@@ -1,7 +1,10 @@
 require "db"
 require "./backends/abstract_backend"
 require "./backends/sqlite_backend"
-require "./backends/duckdb_backend"
+
+{% if flag?(:duckdb) %}
+  require "./backends/duckdb_backend"
+{% end %}
 
 module Faro::Store
   # Factory that creates the appropriate database backend
@@ -18,7 +21,11 @@ module Faro::Store
       normalized = normalize_uri(uri)
 
       if normalized.starts_with?(DUCKDB_SCHEME)
-        DuckDbBackend.new(normalized)
+        {% if flag?(:duckdb) %}
+          DuckDbBackend.new(normalized)
+        {% else %}
+          raise "DuckDB backend not available. Rebuild with -Dduckdb or use sqlite3:// URI."
+        {% end %}
       elsif normalized.starts_with?(SQLITE_SCHEME)
         SqliteBackend.new(normalized)
       else

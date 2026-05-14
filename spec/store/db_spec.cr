@@ -1,6 +1,6 @@
 require "../spec_helper"
 
-{% for backend in [:sqlite, :duckdb] %}
+{% for backend in (flag?(:duckdb) ? [:sqlite, :duckdb] : [:sqlite]) %}
 
 describe "Faro::Store::Db ({{backend.id}})" do
   # ── Schema ──────────────────────────────────────────────────────────────────

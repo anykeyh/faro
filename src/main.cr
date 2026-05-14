@@ -1,5 +1,7 @@
 require "sqlite3"
-require "duckdb"
+{% if flag?(:duckdb) %}
+  require "duckdb"
+{% end %}
 require "option_parser"
 
 require "./config"

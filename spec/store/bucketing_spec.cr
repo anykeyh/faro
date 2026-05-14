@@ -15,7 +15,7 @@ def fresh_bucketing(backend : Symbol = :sqlite) : Faro::Store::Bucketing
   Faro::Store::Bucketing.new(db)
 end
 
-{% for backend in [:sqlite, :duckdb] %}
+{% for backend in (flag?(:duckdb) ? [:sqlite, :duckdb] : [:sqlite]) %}
 
 describe "Faro::Store::Bucketing ({{backend.id}})" do
   # ── Raw writes ──────────────────────────────────────────────────────────────
