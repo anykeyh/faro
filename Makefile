@@ -9,15 +9,16 @@ docker-build:
 	docker cp $$id:/build/faro bin/faro; \
 	docker rm $$id > /dev/null
 
-# Bump shard.yml version, tag, and push.
+# Tag a release.
 # Usage: make tag VERSION=x.y.z
 #
 # Steps:
-#   1. Validates you're on master branch
-#   2. Validates the new version > latest tag
-#   3. Updates shard.yml with the new version
-#   4. Runs specs
-#   5. Commits, tags v$(VERSION) + latest, pushes
+#   1. Checks you're on master branch
+#   2. Checks working tree is clean
+#   3. Checks shard.yml version matches VERSION
+#   4. Validates new version > latest tag
+#   5. Runs specs
+#   6. Tags v$(VERSION) + latest, pushes
 tag:
 	@set -eu; \
 	branch=$$(git branch --show-current); \
@@ -33,6 +34,13 @@ tag:
 	  echo "Usage: make tag VERSION=x.y.z"; exit 1; \
 	fi; \
 	\
+	file_ver=$$(grep '^version:' shard.yml | sed 's/^version: *"//;s/"//'); \
+	if [ "$$file_ver" != "$$version" ]; then \
+	  echo "ERROR: shard.yml version is \"$$file_ver\" but VERSION is \"$$version\""; \
+	  echo "Update shard.yml to match and commit first."; \
+	  exit 1; \
+	fi; \
+	\
 	latest_tag=$$(git tag -l 'v*' --sort=-version:refname | head -1); \
 	latest_ver=""; \
 	if [ -n "$$latest_tag" ]; then \
@@ -41,13 +49,10 @@ tag:
 	if [ -n "$$latest_ver" ]; then \
 	  sorted=$$(printf '%s\n' "$$latest_ver" "$$version" | sort -V | head -1); \
 	  if [ "$$sorted" != "$$latest_ver" ]; then \
-	    echo "ERROR: new version v$$version is not greater than latest tag $$latest_tag"; exit 1; \
+	    echo "ERROR: version v$$version is not greater than latest tag $$latest_tag"; exit 1; \
 	  fi; \
 	fi; \
 	\
-	sed -i "s/^version: .*/version: \"$$version\"/" shard.yml; \
-	git add shard.yml; \
-	git commit -m "Release v$$version"; \
 	crystal spec; \
 	git tag "v$$version"; \
 	git tag -f latest; \
