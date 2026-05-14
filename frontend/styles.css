@@ -19,6 +19,10 @@
     --yellow: #c9922a;
     --red: #b94a4a;
     --radius: 10px;
+    --valid: #4a9e6b;
+    --valid-soft: rgba(74, 158, 107, 0.12);
+    --invalid: #b94a4a;
+    --invalid-soft: rgba(185, 74, 74, 0.12);
 }
 
 body {
@@ -75,52 +79,144 @@ header h1 {
     letter-spacing: 0.03em;
 }
 
-/* ── Dashboard grid ────────────────────────────────────── */
+/* ── Dashboard ──────────────────────────────────────────── */
 
 .dashboard {
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 14px;
+    position: relative;
+    margin: 0 auto;
     padding: 20px;
-    align-items: start;
+    max-width: 100%;
+}
+
+.grid {
+    position: relative;
+    width: 100%;
+    user-select: none;
+}
+
+.cell {
+    position: absolute;
+    border: 1px dashed var(--border);
+    border-radius: 6px;
+    background: transparent;
+    pointer-events: none;
+    opacity: 0.4;
+}
+
+.slot {
+    position: absolute;
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    background: transparent;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 22px;
+    color: var(--text-dim);
+    transition:
+        border-color 0.2s,
+        color 0.2s,
+        background 0.2s;
+    z-index: 1;
+}
+
+.slot:hover {
+    border-color: var(--accent-dim);
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 6%, transparent);
+}
+
+.slot::after {
+    content: "+";
+}
+
+/* ── Preview ────────────────────────────────────────────── */
+
+.preview {
+    position: absolute;
+    border-radius: 8px;
+    pointer-events: none;
+    transition:
+        left 80ms ease,
+        top 80ms ease,
+        width 80ms ease;
+    z-index: 1;
+}
+.preview.valid {
+    background: var(--valid-soft);
+    border: 2px dashed var(--valid);
+}
+.preview.invalid {
+    background: var(--invalid-soft);
+    border: 2px dashed var(--invalid);
 }
 
 /* ── Card ───────────────────────────────────────────────── */
 
 .card {
+    position: absolute;
     background: var(--surface);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    min-height: 120px;
-    transition:
-        border-color 0.2s,
-        box-shadow 0.2s;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    transition: box-shadow 0.15s ease;
+    z-index: 2;
 }
 
-.card:hover {
-    border-color: var(--accent-dim);
-    box-shadow: 0 0 20px rgba(212, 168, 67, 0.05);
+.card.dragging {
+    z-index: 10;
+    opacity: 0.85;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.card.resizing {
+    z-index: 10;
 }
 
 .card-header {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 10px 14px 6px;
+    background: color-mix(in srgb, var(--accent) 8%, var(--surface));
+    border-bottom: 1px solid var(--border);
+    flex-shrink: 0;
 }
 
 .card-title {
-    font-size: 11px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 20px;
+    font-size: 12px;
     font-weight: 600;
-    cursor: pointer;
+    cursor: grab;
     color: var(--text-dim);
     text-transform: uppercase;
     letter-spacing: 0.06em;
+    flex: 1;
+    min-width: 0;
+}
+
+.card-title:active {
+    cursor: grabbing;
+}
+
+.card-title .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    flex-shrink: 0;
 }
 
 .card-actions {
     display: flex;
-    gap: 4px;
+    gap: 2px;
+    padding-right: 8px;
+    flex-shrink: 0;
 }
 
 .card-action {
@@ -141,14 +237,20 @@ header h1 {
 }
 
 .card-body {
-    padding: 6px 14px 14px;
+    flex: 1;
+    padding: 14px 20px 20px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-height: 0;
 }
 
 .metric-row {
     display: flex;
     align-items: baseline;
     gap: 8px;
-    padding: 3px 0;
+    padding: 2px 0;
 }
 
 .metric-value {
@@ -181,41 +283,45 @@ header h1 {
 .card-graph .card-body {
     padding: 0;
     width: 100%;
+    flex: 1;
+    min-height: 0;
 }
 .card-graph .svg-chart {
     width: 100%;
-    height: 200px;
+    height: 100%;
 }
 .card-graph .svg-chart svg {
     display: block;
     width: 100%;
     height: 100%;
-    border-radius: 0 0 var(--radius) var(--radius);
 }
 
-/* ── Add card button ────────────────────────────────────── */
+/* ── Resize handle ──────────────────────────────────────── */
 
-.add-card-btn {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: var(--surface);
-    border: 2px dashed var(--border);
-    border-radius: var(--radius);
-    cursor: pointer;
-    font-size: 28px;
-    color: var(--text-dim);
-    min-height: 120px;
-    transition:
-        border-color 0.2s,
-        color 0.2s,
-        background 0.2s;
+.resize-handle {
+    position: absolute;
+    width: 16px;
+    height: 16px;
+    right: 0;
+    bottom: 0;
+    cursor: nwse-resize;
+    z-index: 3;
 }
-
-.add-card-btn:hover {
-    border-color: var(--accent-dim);
-    color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 4%, transparent);
+.resize-handle::after {
+    content: "";
+    position: absolute;
+    right: 4px;
+    bottom: 4px;
+    width: 8px;
+    height: 8px;
+    border-right: 2px solid var(--text-dim);
+    border-bottom: 2px solid var(--text-dim);
+    opacity: 0.35;
+    border-bottom-right-radius: 2px;
+    transition: opacity 0.12s ease;
+}
+.card:hover .resize-handle::after {
+    opacity: 0.7;
 }
 
 /* ── Add card modal ─────────────────────────────────────── */
@@ -287,7 +393,6 @@ header h1 {
 /* ── Empty state ────────────────────────────────────────── */
 
 .empty {
-    grid-column: 1 / -1;
     text-align: center;
     padding: 80px 20px;
     color: var(--text-dim);

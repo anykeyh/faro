@@ -1,4 +1,4 @@
-// Add Card dialog — "+" button opens a modal to pick type, adapter, metrics
+// Add Card dialog — clicking an empty slot opens a modal
 
 var AddCard = {
   oninit: function (vnode) {
@@ -10,18 +10,21 @@ var AddCard = {
   },
   view: function (vnode) {
     var s = vnode.state;
+
+    // If the dashboard tells us to open at a slot, open the modal
+    if (
+      !s.open &&
+      dragState._addTargetCol !== undefined &&
+      dragState._addTargetCol !== null
+    ) {
+      s.open = true;
+      s.step = "type";
+      // Don't reset _addTargetCol yet — we keep it so store.addCard can use it
+    }
+
     if (!s.open) {
-      return m(
-        ".add-card-btn",
-        {
-          onclick: function () {
-            s.open = true;
-            s.step = "type";
-            m.redraw();
-          },
-        },
-        "+",
-      );
+      // Render nothing — the slots are handled by Dashboard
+      return null;
     }
 
     var modalContent;
@@ -106,10 +109,21 @@ var AddCard = {
             onclick: function () {
               if (s.metrics.length === 0) return;
               var cardWidth = s.type === "graph" ? 2 : 1;
-              store.addCard(s.type, s.adapter, s.metrics.slice(), cardWidth);
+              store.addCard(
+                s.type,
+                s.adapter,
+                s.metrics.slice(),
+                cardWidth,
+                dragState._addTargetCol,
+                dragState._addTargetRow,
+              );
+              // Reset modal state and slot target
               s.open = false;
               s.step = "type";
               s.metrics = [];
+              s.adapter = "";
+              dragState._addTargetCol = null;
+              dragState._addTargetRow = null;
             },
           },
           "Add card",
@@ -125,6 +139,9 @@ var AddCard = {
             s.open = false;
             s.step = "type";
             s.metrics = [];
+            s.adapter = "";
+            dragState._addTargetCol = null;
+            dragState._addTargetRow = null;
           }
         },
       },

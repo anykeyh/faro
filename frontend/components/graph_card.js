@@ -93,7 +93,7 @@ function findNearest(svgX, state) {
 
 // Build the SVG content for a card.  Also populates state.datasets with
 // computed SVG coordinates for hover tracking.
-function buildSVG(card, containerWidth, state) {
+function buildSVG(card, containerWidth, containerHeight, state) {
   state.datasets = [];
 
   if (!card.metrics || card.metrics.length === 0) return "";
@@ -105,7 +105,7 @@ function buildSVG(card, containerWidth, state) {
   var windowRange = windowEnd - windowStart;
 
   var W = containerWidth || 600;
-  var H = 200;
+  var H = containerHeight || 200;
   var chartL = AXIS_LABEL_WIDTH;
   var chartR = W - AXIS_PAD;
   var chartT = AXIS_PAD;
@@ -458,8 +458,10 @@ var GraphCard = {
     state.updateSVG = function () {
       var container = vnode.dom.querySelector(".svg-chart");
       if (!container) return;
-      var w = container.parentElement.clientWidth || 600;
-      var svg = buildSVG(vnode.attrs.card, w, state);
+      var parent = container.parentElement;
+      var w = parent.clientWidth || 600;
+      var h = parent.clientHeight || 200;
+      var svg = buildSVG(vnode.attrs.card, w, h, state);
       container.innerHTML = svg;
 
       // Attach hover listener to the SVG
@@ -486,75 +488,102 @@ var GraphCard = {
   },
   view: function (vnode) {
     var card = vnode.attrs.card;
-    var style = "grid-column: span " + (card.w || 2) + ";";
-    return m(".card.card-graph", { style: style, key: card.id }, [
-      m(".card-header", [
-        m(
-          "span.card-title",
-          {
-            config: function (el) {
-              el.onclick = function () {
-                var newTitle = prompt("Card title:", card.title || "");
-                if (newTitle !== null) {
-                  store.updateCard(card, { title: newTitle || undefined });
-                }
-              };
-            },
-          },
-          store.cardLabel(card),
-        ),
-        m(".card-actions", [
+
+    var isDragging = dragState.drag && dragState.drag.id === card.id;
+    var isResizing = dragState.resize && dragState.resize.id === card.id;
+
+    return m(
+      ".card.card-graph",
+      {
+        class: [isDragging && "dragging", isResizing && "resizing"]
+          .filter(Boolean)
+          .join(" "),
+        style: {
+          left: posX(card.x) + "px",
+          top: posY(card.y) + "px",
+          width: spanW(card.w) + "px",
+          height: spanH(card.h || 1) + "px",
+        },
+      },
+      [
+        m(".card-header", [
           m(
-            "select",
+            ".card-title",
             {
-              style:
-                "background:var(--surface-hover);color:var(--text-dim);border:1px solid var(--border);border-radius:4px;font-size:11px;padding:1px 4px;cursor:pointer;",
-              onchange: function (e) {
-                store.updateCard(card, {
-                  range: parseInt(e.target.value, 10),
-                });
+              onmousedown: function (e) {
+                if (e.button !== 0) return;
+                e.preventDefault();
+                var cardEl = e.currentTarget.parentElement;
+                var r = cardEl.getBoundingClientRect();
+                dragState.drag = {
+                  id: card.id,
+                  offsetX: e.clientX - r.left,
+                  offsetY: e.clientY - r.top,
+                  targetX: card.x,
+                  targetY: card.y,
+                  canDrop: true,
+                };
               },
             },
-            RANGE_OPTIONS.map(function (opt) {
-              return m(
-                "option",
-                {
-                  value: opt.minutes,
-                  selected: (card.range || 60) === opt.minutes,
+            [m("span.dot"), m("span", store.cardLabel(card))],
+          ),
+          m(".card-actions", [
+            m(
+              "select",
+              {
+                style:
+                  "background:var(--surface-hover);color:var(--text-dim);border:1px solid var(--border);border-radius:4px;font-size:11px;padding:1px 4px;cursor:pointer;",
+                onchange: function (e) {
+                  store.updateCard(card, {
+                    range: parseInt(e.target.value, 10),
+                  });
                 },
-                opt.label,
-              );
-            }),
-          ),
-          m(
-            "a.card-action",
-            {
-              href: "#",
-              onclick: function (e) {
-                e.preventDefault();
-                var sizes = [1, 2, 3, 4];
-                var next = sizes[(sizes.indexOf(card.w) + 1) % sizes.length];
-                store.updateCard(card, { w: next });
               },
-            },
-            "\u2194",
-          ),
-          m(
-            "a.card-action",
-            {
-              href: "#",
-              onclick: function (e) {
-                e.preventDefault();
-                if (confirm("Remove this card?")) store.removeCard(card);
+              RANGE_OPTIONS.map(function (opt) {
+                return m(
+                  "option",
+                  {
+                    value: opt.minutes,
+                    selected: (card.range || 60) === opt.minutes,
+                  },
+                  opt.label,
+                );
+              }),
+            ),
+            m(
+              "a.card-action",
+              {
+                href: "#",
+                onclick: function (e) {
+                  e.preventDefault();
+                  if (confirm("Remove this card?")) store.removeCard(card);
+                },
               },
-            },
-            "\u2716",
-          ),
+              "\u2716",
+            ),
+          ]),
         ]),
-      ]),
-      m(".card-body", { style: "padding:0;height:200px;" }, [
-        m(".svg-chart", { style: "width:100%;height:100%;" }),
-      ]),
-    ]);
+        m(".card-body", [
+          m(".svg-chart", { style: "width:100%;height:100%;" }),
+        ]),
+        m(".resize-handle", {
+          onmousedown: function (e) {
+            if (e.button !== 0) return;
+            e.preventDefault();
+            e.stopPropagation();
+            dragState.resize = {
+              id: card.id,
+              startMouseX: e.clientX,
+              startMouseY: e.clientY,
+              startW: card.w,
+              startH: card.h || 1,
+              targetW: card.w,
+              targetH: card.h || 1,
+              canResize: true,
+            };
+          },
+        }),
+      ],
+    );
   },
 };
