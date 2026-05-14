@@ -56,7 +56,7 @@ Faro uses a single YAML configuration file. Run with:
 ### Minimal config
 
 ```yaml
-db: ":memory:"
+db: "sqlite3://:memory:"
 
 server:
   host: "0.0.0.0"
@@ -77,6 +77,13 @@ db: "duckdb://:memory:"                # ephemeral with DuckDB
 db: "sqlite3:///data/faro.db"          # persistent file (SQLite3)
 db: "duckdb:///data/faro.duckdb"       # persistent file (DuckDB)
 ```
+
+> **DuckDB support**: The pre-built binaries on GitHub releases ship with SQLite3 only.
+> To use DuckDB, compile from source with the `-Dduckdb` flag:
+> ```bash
+> crystal build src/main.cr --release -Dduckdb -o faro
+> ```
+> This requires `libduckdb.so` (or `libduckdb.dll` on Windows) available in your library path.
 
 ### Storage & compaction
 
