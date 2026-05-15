@@ -82,15 +82,19 @@ jobs:
 
     steps:
       - uses: actions/checkout@v6
-        with:
-          fetch-tags: true
 
       - name: Download all artifacts
         uses: actions/download-artifact@v8
         with:
           merge-multiple: true
 
-      - name: Create Release
+      - name: Verify artifacts are present
+        run: |
+          set -euxo pipefail
+          ls -la faro-linux-amd64 faro-linux-arm64
+          file faro-linux-amd64 faro-linux-arm64
+
+      - name: Publish versioned release
         uses: softprops/action-gh-release@v3
         with:
           files: |
@@ -98,13 +102,21 @@ jobs:
             faro-linux-arm64
           generate_release_notes: true
 
-      - name: Update latest tag and upload artifacts
+      - name: Delete old latest release and tag
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-          git tag -f latest
-          git push origin latest --force
-          gh release upload latest faro-linux-amd64 faro-linux-arm64 --clobber || \
-            gh release create latest faro-linux-amd64 faro-linux-arm64 --generate-notes --title "Latest build"
+          set -euxo pipefail
+          gh release delete latest --yes --cleanup-tag || true
+
+      - name: Publish latest release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: latest
+          name: "Latest build"
+          target_commitish: ${{ github.sha }}
+          make_latest: "false"
+          files: |
+            faro-linux-amd64
+            faro-linux-arm64
+          generate_release_notes: true
