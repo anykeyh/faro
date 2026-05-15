@@ -62,39 +62,55 @@ module Faro::Store
     def query(adapter_name : String, since : Time, finish : Time) : Array(NamedTuple(
       metric: String, value: Float64?, avg: Float64?, k: Int32, dev: Float64,
       min: Float64?, max: Float64?, from_ts: Time, to_ts: Time, resolved_at: Time))
-      rows = [] of NamedTuple(
-        metric: String, value: Float64?, avg: Float64?, k: Int32, dev: Float64,
-        min: Float64?, max: Float64?, from_ts: Time, to_ts: Time, resolved_at: Time)
       sql = "SELECT metric, value, avg, k, dev, min, max, from_ts, to_ts, resolved_at " \
             "FROM sensors WHERE name = ? AND from_ts >= ? AND from_ts < ? ORDER BY from_ts ASC"
       @connection.query(sql, adapter_name, since, finish) do |rs|
-        rs.each do
-          rows << {metric: rs.read(String), value: rs.read(Float64?), avg: rs.read(Float64?),
-                   k: rs.read(Int32), dev: rs.read(Float64), min: rs.read(Float64?),
-                   max: rs.read(Float64?), from_ts: rs.read(Time), to_ts: rs.read(Time),
-                   resolved_at: rs.read(Time)}
+        rs.map do
+          {
+            metric:      rs.read(String),
+            value:       rs.read(Float64?),
+            avg:         rs.read(Float64?),
+            k:           rs.read(Int32),
+            dev:         rs.read(Float64),
+            min:         rs.read(Float64?),
+            max:         rs.read(Float64?),
+            from_ts:     rs.read(Time),
+            to_ts:       rs.read(Time),
+            resolved_at: rs.read(Time),
+          }
         end
       end
-      rows
     end
 
     def list_names : Array(NamedTuple(name: String, metric: String))
-      rows = [] of NamedTuple(name: String, metric: String)
       @connection.query("SELECT DISTINCT name, metric FROM sensors ORDER BY name, metric") do |rs|
-        rs.each { rows << {name: rs.read(String), metric: rs.read(String)} }
+        rs.map do
+          {
+            name:   rs.read(String),
+            metric: rs.read(String),
+          }
+        end
       end
-      rows
     end
 
     def latest_value(adapter_name : String, metric : String) : Float64?
-      result = nil
+      sql = <<-SQL
+        SELECT value
+        FROM sensors
+        WHERE name = ? AND metric = ?
+        ORDER BY from_ts DESC
+        LIMIT 1
+      SQL
+
       @connection.query(
-        "SELECT value FROM sensors WHERE name = ? AND metric = ? ORDER BY from_ts DESC LIMIT 1",
-        adapter_name, metric
+        sql, adapter_name, metric
       ) do |rs|
-        rs.each { result = rs.read(Float64?) }
+        rs.each do
+          return rs.read(Float64?)
+        end
+
+        return nil
       end
-      result
     end
 
     def latch_open?(threshold_name : String, latch_name : String) : Bool

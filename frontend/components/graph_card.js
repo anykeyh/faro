@@ -175,7 +175,15 @@ function buildSVG(card, containerWidth, containerHeight, state) {
       if (p.value > maxVal) maxVal = p.value;
     });
   });
-  var valRange = maxVal - minVal || 1;
+  var valRange = maxVal - minVal;
+  if (valRange === 0) {
+    // When all values are identical (e.g. always zero), pad symmetrically
+    // so the line is centered in the chart instead of hugging an edge
+    var padding = maxVal !== 0 ? Math.abs(maxVal) * 0.5 : 0.5;
+    minVal -= padding;
+    maxVal += padding;
+    valRange = maxVal - minVal;
+  }
 
   function xPos(ts) {
     return chartL + ((ts - windowStart) / windowRange) * chartW;
