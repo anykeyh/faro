@@ -106,5 +106,5 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git tag -f latest
           git push origin latest --force
-          gh release upload latest faro-linux-amd64/faro-linux-amd64 faro-linux-arm64/faro-linux-arm64 --clobber || \
-            gh release create latest faro-linux-amd64/faro-linux-amd64 faro-linux-arm64/faro-linux-arm64 --generate-notes --title "Latest build"
+          gh release upload latest faro-linux-amd64 faro-linux-arm64 --clobber || \
+            gh release create latest faro-linux-amd64 faro-linux-arm64 --generate-notes --title "Latest build"
