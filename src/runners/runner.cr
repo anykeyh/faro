@@ -20,6 +20,9 @@ end
 # and returns a RunnerResult with raw output from the probe script.
 abstract class Faro::Runner
   # Run a probe script at `path` with optional `args` and `env`,
-  # routed according to `via`. Returns raw stdout/stderr.
-  abstract def run(path : String, args : Array(String)?, env : Hash(String, String)?, via : Config::ViaConfig?) : RunnerResult
+  # routed according to `via`. If `timeout` is provided (in seconds),
+  # the process is killed (SIGTERM, then SIGKILL after 2s grace)
+  # if it exceeds that limit. Returns raw stdout/stderr.
+  abstract def run(path : String, args : Array(String)?, env : Hash(String, String)?,
+                   via : Config::ViaConfig?, timeout : Float64? = nil) : RunnerResult
 end

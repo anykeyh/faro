@@ -21,14 +21,16 @@ class Faro::RunnerContainer
 
   # Run a probe via the appropriate transport runner.
   # Returns raw output; the caller is responsible for parsing the JSON.
+  # If `timeout` is provided, the process is killed if it exceeds that limit.
   def run(path : String, args : Array(String)? = nil,
           env : Hash(String, String)? = nil,
-          via : Config::ViaConfig? = nil) : RunnerResult
+          via : Config::ViaConfig? = nil,
+          timeout : Float64? = nil) : RunnerResult
     type = via.try(&.type) || "local"
     runner = @registry[type]?
     unless runner
       return RunnerResult.new(stdout: "", stderr: "unknown runner type: #{type}", exit_code: -1)
     end
-    runner.run(path, args: args, env: env, via: via)
+    runner.run(path, args: args, env: env, via: via, timeout: timeout)
   end
 end

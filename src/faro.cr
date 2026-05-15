@@ -102,7 +102,8 @@ module Faro
     spawn(name: "adapter:#{adapter.name}") do
       loop do
         begin
-          result = runner.run(script_path, args: adapter.args, env: adapter.env, via: adapter.via)
+          result = runner.run(script_path, args: adapter.args, env: adapter.env,
+                              via: adapter.via, timeout: adapter.timeout)
           if result.success?
             data = Hash(String, Float64).from_json(result.stdout)
             data["_alive"] = 1.0
