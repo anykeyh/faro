@@ -6,6 +6,8 @@ module Faro::Store
 
     def initialize(@uri : String)
       @connection = DB.connect(@uri)
+      @connection.exec("PRAGMA journal_mode = WAL")
+      @connection.exec("PRAGMA synchronous = NORMAL")
     end
 
     def setup_schema : Nil
